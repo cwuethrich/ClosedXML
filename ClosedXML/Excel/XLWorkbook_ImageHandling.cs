@@ -1,3 +1,5 @@
+#nullable disable
+
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Drawing.Spreadsheet;
 using DocumentFormat.OpenXml.Packaging;
@@ -10,18 +12,13 @@ namespace ClosedXML.Excel
 {
     public partial class XLWorkbook
     {
-        public static OpenXmlElement GetAnchorFromImageId(WorksheetPart worksheetPart, string relId)
+        public static OpenXmlElement GetAnchorFromImageId(DrawingsPart drawingsPart, string relId)
         {
-            var drawingsPart = worksheetPart.DrawingsPart;
             var matchingAnchor = drawingsPart.WorksheetDrawing
                 .Where(wsdr => wsdr.Descendants<Xdr.BlipFill>()
                     .Any(x => x?.Blip?.Embed?.Value.Equals(relId) ?? false)
                 );
-
-            if (!matchingAnchor.Any())
-                return null;
-            else
-                return matchingAnchor.First();
+            return matchingAnchor.FirstOrDefault();
         }
 
         public static OpenXmlElement GetAnchorFromImageIndex(WorksheetPart worksheetPart, Int32 index)
@@ -32,10 +29,7 @@ namespace ClosedXML.Excel
                     .Any(x => x.Id.Value.Equals(Convert.ToUInt32(index + 1)))
                 );
 
-            if (!matchingAnchor.Any())
-                return null;
-            else
-                return matchingAnchor.First();
+            return matchingAnchor.FirstOrDefault();
         }
 
         public static NonVisualDrawingProperties GetPropertiesFromAnchor(OpenXmlElement anchor)

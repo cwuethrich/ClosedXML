@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
 namespace ClosedXML.Excel
@@ -12,6 +13,11 @@ namespace ClosedXML.Excel
         private readonly XLWorkbook _workbook;
         private readonly Dictionary<String, XLWorksheet> _worksheets = new Dictionary<String, XLWorksheet>(StringComparer.OrdinalIgnoreCase);
         internal ICollection<String> Deleted { get; private set; }
+
+        /// <summary>
+        /// SheetId that will be assigned to next created sheet.
+        /// </summary>
+        private UInt32 _nextSheetId = 1;
 
         #region Constructor
 
@@ -45,13 +51,25 @@ namespace ClosedXML.Excel
             return _worksheets.ContainsKey(sheetName);
         }
 
-        public bool TryGetWorksheet(string sheetName, out IXLWorksheet worksheet)
+        bool IXLWorksheets.TryGetWorksheet(string sheetName, [NotNullWhen(true)] out IXLWorksheet? worksheet)
         {
-            if (_worksheets.TryGetValue(sheetName.UnescapeSheetName(), out XLWorksheet w))
+            if (TryGetWorksheet(sheetName, out var foundSheet))
             {
-                worksheet = w;
+                worksheet = foundSheet;
                 return true;
             }
+
+            worksheet = null;
+            return false;
+        }
+
+        internal bool TryGetWorksheet(string sheetName, [NotNullWhen(true)] out XLWorksheet? worksheet)
+        {
+            if (_worksheets.TryGetValue(sheetName.UnescapeSheetName(), out worksheet))
+            {
+                return true;
+            }
+
             worksheet = null;
             return false;
         }
@@ -93,7 +111,7 @@ namespace ClosedXML.Excel
 
         public IXLWorksheet Add(String sheetName)
         {
-            var sheet = new XLWorksheet(sheetName, _workbook);
+            var sheet = new XLWorksheet(sheetName, _workbook, GetNextSheetId());
             Add(sheetName, sheet);
             sheet._position = _worksheets.Count + _workbook.UnsupportedSheets.Count;
             return sheet;
@@ -101,9 +119,17 @@ namespace ClosedXML.Excel
 
         public IXLWorksheet Add(String sheetName, Int32 position)
         {
+            return Add(sheetName, position, GetNextSheetId());
+        }
+
+        internal XLWorksheet Add(String sheetName, Int32 position, UInt32 sheetId)
+        {
             _worksheets.Values.Where(w => w._position >= position).ForEach(w => w._position += 1);
             _workbook.UnsupportedSheets.Where(w => w.Position >= position).ForEach(w => w.Position += 1);
-            var sheet = new XLWorksheet(sheetName, _workbook);
+
+            // If the loaded sheetId is greater than current, just make sure our next sheetId is even bigger.
+            _nextSheetId = Math.Max(_nextSheetId, sheetId + 1);
+            var sheet = new XLWorksheet(sheetName, _workbook, sheetId);
             Add(sheetName, sheet);
             sheet._position = position;
             return sheet;
@@ -115,6 +141,8 @@ namespace ClosedXML.Excel
                 throw new ArgumentException(String.Format("A worksheet with the same name ({0}) has already been added.", sheetName), nameof(sheetName));
 
             _worksheets.Add(sheetName, sheet);
+
+            _workbook.NotifyWorksheetAdded(sheet);
         }
 
         public void Delete(String sheetName)
@@ -139,7 +167,6 @@ namespace ClosedXML.Excel
             _worksheets.RemoveAll(w => w.Position == position);
             _worksheets.Values.Where(w => w.Position > position).ForEach(w => w._position -= 1);
             _workbook.UnsupportedSheets.Where(w => w.Position > position).ForEach(w => w.Position -= 1);
-            _workbook.InvalidateFormulas();
 
             ws.Cleanup();
         }
@@ -161,8 +188,13 @@ namespace ClosedXML.Excel
 
         public IXLWorksheet Add(DataTable dataTable, String sheetName)
         {
+            return Add(dataTable, sheetName, TableNameGenerator.GetNewTableName(_workbook));
+        }
+
+        public IXLWorksheet Add(DataTable dataTable, String sheetName, string tableName)
+        {
             var ws = Add(sheetName);
-            ws.Cell(1, 1).InsertTable(dataTable, sheetName);
+            ws.Cell(1, 1).InsertTable(dataTable, tableName);
             return ws;
         }
 
@@ -184,9 +216,35 @@ namespace ClosedXML.Excel
 
             _worksheets.Remove(oldSheetName);
             Add(newSheetName, ws);
+
+            foreach (var listener in GetWorkbookListeners())
+                listener.OnSheetRenamed(oldSheetName, newSheetName);
         }
 
         #region Private members
+
+        private IEnumerable<IWorkbookListener> GetWorkbookListeners()
+        {
+            // All components that should be updated when sheet is added/removed or renamed should
+            // be enumerated here.
+            yield return _workbook.CalcEngine;
+
+            foreach (var sheet in _worksheets.Values)
+            {
+                yield return sheet.Internals.CellsCollection;
+            }
+
+            foreach (var definedName in _workbook.DefinedNamesInternal)
+                yield return definedName;
+
+            foreach (var sheet in _worksheets.Values)
+            {
+                foreach (var definedName in sheet.DefinedNames)
+                {
+                    yield return definedName;
+                }
+            }
+        }
 
         private String GetNextWorksheetName()
         {
@@ -199,6 +257,8 @@ namespace ClosedXML.Excel
             }
             return sheetName;
         }
+
+        private UInt32 GetNextSheetId() => _nextSheetId++;
 
         #endregion Private members
     }

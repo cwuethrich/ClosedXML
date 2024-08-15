@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ClosedXML.Excel
 {
@@ -20,6 +21,8 @@ namespace ClosedXML.Excel
 
         IXLWorksheet Add(DataTable dataTable, String sheetName);
 
+        IXLWorksheet Add(DataTable dataTable, String sheetName, String tableName);
+
         void Add(DataSet dataSet);
 
         Boolean Contains(String sheetName);
@@ -28,7 +31,7 @@ namespace ClosedXML.Excel
 
         void Delete(Int32 position);
 
-        bool TryGetWorksheet(string sheetName, out IXLWorksheet worksheet);
+        bool TryGetWorksheet(string sheetName, [NotNullWhen(true)] out IXLWorksheet? worksheet);
 
         IXLWorksheet Worksheet(String sheetName);
 

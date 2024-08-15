@@ -1,4 +1,3 @@
-using ClosedXML.Excel.CalcEngine.Exceptions;
 using ExcelNumberFormat;
 using System;
 using System.Collections;
@@ -7,23 +6,26 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using static ClosedXML.Excel.CalcEngine.Functions.SignatureAdapter;
 
 namespace ClosedXML.Excel.CalcEngine
 {
     internal static class Text
     {
-        public static void Register(CalcEngine ce)
+        public static void Register(FunctionRegistry ce)
         {
             ce.RegisterFunction("ASC", 1, Asc); // Changes full-width (double-byte) English letters or katakana within a character string to half-width (single-byte) characters
             //ce.RegisterFunction("BAHTTEXT	Converts a number to text, using the ß (baht) currency format
             ce.RegisterFunction("CHAR", 1, _Char); // Returns the character specified by the code number
             ce.RegisterFunction("CLEAN", 1, Clean); //	Removes all nonprintable characters from text
             ce.RegisterFunction("CODE", 1, Code); // Returns a numeric code for the first character in a text string
-            ce.RegisterFunction("CONCAT", 1, int.MaxValue, Concat); //	Joins several text items into one text item
-            ce.RegisterFunction("CONCATENATE", 1, int.MaxValue, Concatenate); //	Joins several text items into one text item
+            ce.RegisterFunction("CONCAT", 1, int.MaxValue, Concat, AllowRange.All); //	Joins several text items into one text item
+
+            // LEGACY: Remove after switch to new engine. CONCATENATE function doesn't actually accept ranges, but it's legacy implementation has a check and there is a test.
+            ce.RegisterFunction("CONCATENATE", 1, int.MaxValue, Concatenate, AllowRange.All); //	Joins several text items into one text item
             ce.RegisterFunction("DOLLAR", 1, 2, Dollar); // Converts a number to text, using the $ (dollar) currency format
             ce.RegisterFunction("EXACT", 2, Exact); // Checks to see if two text values are identical
-            ce.RegisterFunction("FIND", 2, 3, Find); //Finds one text value within another (case-sensitive)
+            ce.RegisterFunction("FIND", 2, 3, AdaptLastOptional(Find), FunctionFlags.Scalar); //Finds one text value within another (case-sensitive)
             ce.RegisterFunction("FIXED", 1, 3, Fixed); // Formats a number as text with a fixed number of decimals
             //ce.RegisterFunction("JIS	Changes half-width (single-byte) English letters or katakana within a character string to full-width (double-byte) characters
             ce.RegisterFunction("LEFT", 1, 2, Left); // LEFTB	Returns the leftmost characters from a text value
@@ -36,21 +38,21 @@ namespace ClosedXML.Excel.CalcEngine
             ce.RegisterFunction("REPLACE", 4, Replace); // Replaces characters within text
             ce.RegisterFunction("REPT", 2, Rept); // Repeats text a given number of times
             ce.RegisterFunction("RIGHT", 1, 2, Right); // Returns the rightmost characters from a text value
-            ce.RegisterFunction("SEARCH", 2, 3, Search); // Finds one text value within another (not case-sensitive)
+            ce.RegisterFunction("SEARCH", 2, 3, AdaptLastOptional(Search), FunctionFlags.Scalar); // Finds one text value within another (not case-sensitive)
             ce.RegisterFunction("SUBSTITUTE", 3, 4, Substitute); // Substitutes new text for old text in a text string
             ce.RegisterFunction("T", 1, T); // Converts its arguments to text
             ce.RegisterFunction("TEXT", 2, _Text); // Formats a number and converts it to text
-            ce.RegisterFunction("TEXTJOIN", 3, 254, TextJoin); // Joins text via delimiter
+            ce.RegisterFunction("TEXTJOIN", 3, 254, TextJoin, AllowRange.Except, 0, 1); // Joins text via delimiter
             ce.RegisterFunction("TRIM", 1, Trim); // Removes spaces from text
             ce.RegisterFunction("UPPER", 1, Upper); // Converts text to uppercase
-            ce.RegisterFunction("VALUE", 1, Value); // Converts a text argument to a number
+            ce.RegisterFunction("VALUE", 1, 1, Adapt(Value), FunctionFlags.Scalar); // Converts a text argument to a number
         }
 
         private static object _Char(List<Expression> p)
         {
             var i = (int)p[0];
             if (i < 1 || i > 255)
-                throw new CellValueException(string.Format("The number {0} is out of the required range (1 to 255)", i));
+                return XLError.IncompatibleValue;
 
             var c = (char)i;
             return c.ToString();
@@ -88,15 +90,15 @@ namespace ClosedXML.Excel.CalcEngine
                     if (objectExpression.Value is CellRangeReference cellRangeReference)
                     {
                         if (!cellRangeReference.Range.RangeAddress.IsValid)
-                            throw new CellReferenceException();
+                            return XLError.CellReference;
 
                         // Only single cell range references allows at this stage. See unit test for more details
                         if (cellRangeReference.Range.RangeAddress.NumberOfCells > 1)
-                            throw new CellValueException("This function does not accept cell ranges as parameters.");
+                            return XLError.IncompatibleValue;
                     }
                     else
                         // I'm unsure about what else objectExpression.Value could be, but let's throw CellReferenceException
-                        throw new CellReferenceException();
+                        return XLError.CellReference;
                 }
 
                 sb.Append((string)x);
@@ -104,20 +106,17 @@ namespace ClosedXML.Excel.CalcEngine
             return sb.ToString();
         }
 
-        private static object Find(List<Expression> p)
+        private static AnyValue Find(CalcContext ctx, String findText, String withinText, OneOf<double, Blank> startNum)
         {
-            var srch = (string)p[0];
-            var text = (string)p[1];
-            var start = 0;
-            if (p.Count > 2)
-            {
-                start = (int)p[2] - 1;
-            }
-            var index = text.IndexOf(srch, start, StringComparison.Ordinal);
-            if (index == -1)
-                throw new ArgumentException("String not found.");
-            else
-                return index + 1;
+            var startIndex = startNum.TryPickT0(out var startNumber, out _) ? (int)Math.Truncate(startNumber) - 1 : 0;
+            if (startIndex < 0 || startIndex > withinText.Length)
+                return XLError.IncompatibleValue;
+
+            var text = withinText.AsSpan(startIndex);
+            var index = text.IndexOf(findText.AsSpan());
+            return index == -1
+                ? XLError.IncompatibleValue
+                : index + startIndex + 1;
         }
 
         private static object Left(List<Expression> p)
@@ -218,38 +217,23 @@ namespace ClosedXML.Excel.CalcEngine
             return str.Substring(str.Length - n);
         }
 
-        private static string WildcardToRegex(string pattern)
+        private static AnyValue Search(CalcContext ctx, String findText, String withinText, OneOf<double, Blank> startNum)
         {
-            return Regex.Escape(pattern)
-                .Replace(".", "\\.")
-                .Replace("\\*", ".*")
-                .Replace("\\?", ".");
-        }
+            if (withinText.Length == 0)
+                return XLError.IncompatibleValue;
 
-        private static object Search(List<Expression> p)
-        {
-            var search = WildcardToRegex(p[0]);
-            var text = (string)p[1];
+            var startIndex = startNum.TryPickT0(out var startNumber, out _) ? (int)Math.Truncate(startNumber) : 1;
+            startIndex -= 1;
+            if (startIndex < 0 || startIndex >= withinText.Length)
+                return XLError.IncompatibleValue;
 
-            if ("" == text) throw new ArgumentException("Invalid input string.");
+            var wildcard = new Wildcard(findText);
+            ReadOnlySpan<char> text = withinText.AsSpan().Slice(startIndex);
+            var firstIdx = wildcard.Search(text);
+            if (firstIdx < 0)
+                return XLError.IncompatibleValue;
 
-            var start = 0;
-            if (p.Count > 2)
-            {
-                start = (int)p[2] - 1;
-            }
-
-            Regex r = new Regex(search, RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            var match = r.Match(text.Substring(start));
-            if (!match.Success)
-                throw new ArgumentException("Search failed.");
-            else
-                return match.Index + start + 1;
-            //var index = text.IndexOf(search, start, StringComparison.OrdinalIgnoreCase);
-            //if (index == -1)
-            //    throw new ArgumentException("String not found.");
-            //else
-            //    return index + 1;
+            return firstIdx + startIndex + 1;
         }
 
         private static object Substitute(List<Expression> p)
@@ -259,8 +243,8 @@ namespace ClosedXML.Excel.CalcEngine
             var oldText = (string)p[1];
             var newText = (string)p[2];
 
-            if ("" == text) return "";
-            if ("" == oldText) return text;
+            if (text.Length == 0) return "";
+            if (oldText.Length == 0) return text;
 
             // if index not supplied, replace all
             if (p.Count == 3)
@@ -287,8 +271,9 @@ namespace ClosedXML.Excel.CalcEngine
 
         private static object T(List<Expression> p)
         {
-            if (p[0]._token.Value.GetType() == typeof(string))
-                return (string)p[0];
+            var value = p[0].Evaluate();
+            if (value is string)
+                return value;
             else
                 return "";
         }
@@ -320,7 +305,7 @@ namespace ClosedXML.Excel.CalcEngine
         /// <exception cref="ApplicationException">
         /// Delimiter in first param must be a string
         /// or
-        /// Second param must be a boolen (TRUE/FALSE)
+        /// Second param must be a boolean (TRUE/FALSE)
         /// </exception>
         private static object TextJoin(List<Expression> p)
         {
@@ -332,9 +317,9 @@ namespace ClosedXML.Excel.CalcEngine
                 delimiter = (string)p[0];
                 ignoreEmptyStrings = (bool)p[1];
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                throw new CellValueException("Failed to parse arguments", e);
+                return XLError.IncompatibleValue;
             }
 
             foreach (var param in p.Skip(2))
@@ -342,7 +327,7 @@ namespace ClosedXML.Excel.CalcEngine
                 if (param is XObjectExpression tableArray)
                 {
                     if (!(tableArray.Value is CellRangeReference rangeReference))
-                        throw new NoValueAvailableException("tableArray has to be a range");
+                        return XLError.NoValueAvailable;
 
                     var range = rangeReference.Range;
                     IEnumerable<string> cellValues;
@@ -351,9 +336,8 @@ namespace ClosedXML.Excel.CalcEngine
                             .Select(c => c.GetString())
                             .Where(s => !string.IsNullOrEmpty(s));
                     else
-                        cellValues = (range as XLRange).CellValues()
-                            .Cast<object>()
-                            .Select(o => o.ToString());
+                        cellValues = rangeReference.CellValues()
+                            .Select(o => o.ToString(CultureInfo.CurrentCulture));
 
                     values.AddRange(cellValues);
                 }
@@ -366,7 +350,7 @@ namespace ClosedXML.Excel.CalcEngine
             var retVal = string.Join(delimiter, values);
 
             if (retVal.Length > 32767)
-                throw new CellValueException();
+                return XLError.IncompatibleValue;
 
             return retVal;
         }
@@ -383,9 +367,48 @@ namespace ClosedXML.Excel.CalcEngine
             return ((string)p[0]).ToUpper();
         }
 
-        private static object Value(List<Expression> p)
+        private static AnyValue Value(CalcContext ctx, ScalarValue arg)
         {
-            return double.Parse(p[0], NumberStyles.Any, CultureInfo.InvariantCulture);
+            // Specification is vague/misleading:
+            // * function accepts significantly more diverse range of inputs e.g. result of "($100)" is -100
+            //   despite braces not being part of any default number format.
+            // * Different cultures work weird, e.g. 7:30 PM is detected as 19:30 in cs locale despite "PM" designator being "odp."
+            // * Formats 14 and 22 differ depending on the locale (that is why in dialogue are with a '*' sign)
+            if (arg.IsBlank)
+                return 0;
+
+            if (arg.TryPickNumber(out var number))
+                return number;
+
+            if (!arg.TryPickText(out var text, out var error))
+                return error;
+
+            const string percentSign = "%";
+            var isPercent = text.IndexOf(percentSign, StringComparison.Ordinal) >= 0;
+            var textWithoutPercent = isPercent ? text.Replace(percentSign, string.Empty) : text;
+            if (double.TryParse(textWithoutPercent, NumberStyles.Any, ctx.Culture, out var parsedNumber))
+                return isPercent ? parsedNumber / 100d : parsedNumber;
+
+            // fraction not parsed, maybe in the future
+            // No idea how Date/Time parsing works, good enough for initial approach
+            var dateTimeFormats = new[]
+            {
+                ctx.Culture.DateTimeFormat.ShortDatePattern,
+                ctx.Culture.DateTimeFormat.YearMonthPattern,
+                ctx.Culture.DateTimeFormat.ShortTimePattern,
+                ctx.Culture.DateTimeFormat.LongTimePattern,
+                @"mm-dd-yy", // format 14
+                @"d-MMMM-yy", // format 15
+                @"d-MMMM", // format 16
+                @"d-MMM-yyyy",
+                @"H:mm", // format 20
+                @"H:mm:ss" // format 21
+            };
+            const DateTimeStyles dateTimeStyle = DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.NoCurrentDateDefault;
+            if (DateTime.TryParseExact(text, dateTimeFormats, ctx.Culture, dateTimeStyle, out var parsedDate))
+                return parsedDate.ToOADate();
+
+            return XLError.IncompatibleValue;
         }
 
         private static object NumberValue(List<Expression> p)
@@ -400,7 +423,7 @@ namespace ClosedXML.Excel.CalcEngine
 
             if (numberFormatInfo.NumberDecimalSeparator == numberFormatInfo.NumberGroupSeparator)
             {
-                throw new CellValueException("CurrencyDecimalSeparator and CurrencyGroupSeparator have to be different.");
+                return XLError.IncompatibleValue;
             }
 
             //Remove all whitespace characters
@@ -413,10 +436,10 @@ namespace ClosedXML.Excel.CalcEngine
             if (double.TryParse(input, NumberStyles.Any, numberFormatInfo, out var result))
             {
                 if (result <= -1e308 || result >= 1e308)
-                    throw new CellValueException("The value is too large");
+                    return XLError.IncompatibleValue;
 
                 if (result >= -1e-309 && result <= 1e-309 && result != 0)
-                    throw new CellValueException("The value is too tiny");
+                    return XLError.IncompatibleValue;
 
                 if (result >= -1e-308 && result <= 1e-308)
                     result = 0d;
@@ -424,7 +447,7 @@ namespace ClosedXML.Excel.CalcEngine
                 return result;
             }
 
-            throw new CellValueException("Could not convert the value to a number");
+            return XLError.IncompatibleValue;
         }
 
         private static object Asc(List<Expression> p)
@@ -462,7 +485,8 @@ namespace ClosedXML.Excel.CalcEngine
 
         private static object Fixed(List<Expression> p)
         {
-            if (p[0]._token.Value.GetType() == typeof(string))
+            var numberToFormat = p[0].Evaluate();
+            if (numberToFormat is string)
                 throw new ApplicationException("Input type can't be string");
 
             Double value = p[0];

@@ -1,4 +1,6 @@
-﻿using DocumentFormat.OpenXml;
+#nullable disable
+
+using DocumentFormat.OpenXml;
 using System;
 using System.Collections.Generic;
 
@@ -14,6 +16,6 @@ namespace ClosedXML.Excel
         ///   <P>Helper function used during saving to calculate the indices of the filtered values</P>
         /// </summary>
         /// <returns>Indices of the filtered values</returns>
-        internal abstract IEnumerable<Int32> Match(XLWorkbook.PivotTableInfo pti, IXLPivotTable pt);
+        internal abstract IEnumerable<Int32> Match(XLWorkbook.PivotSourceInfo psi, IXLPivotTable pt);
     }
 }

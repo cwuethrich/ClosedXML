@@ -1,8 +1,12 @@
+#nullable disable
+
 using ClosedXML.Excel.CalcEngine;
+using ClosedXML.Graphics;
 using DocumentFormat.OpenXml;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -10,8 +14,6 @@ using static ClosedXML.Excel.XLProtectionAlgorithm;
 
 namespace ClosedXML.Excel
 {
-    public enum XLEventTracking { Enabled, Disabled }
-
     public enum XLCalculateMode
     {
         Auto,
@@ -118,22 +120,15 @@ namespace ClosedXML.Excel
         internal readonly List<UnsupportedSheet> UnsupportedSheets =
             new List<UnsupportedSheet>();
 
-        public XLEventTracking EventTracking { get; set; }
+        internal IXLGraphicEngine GraphicEngine { get; }
 
-        /// <summary>
-        /// Counter increasing at workbook data change. Serves to determine if the cell formula
-        /// has to be recalculated.
-        /// </summary>
-        internal long RecalculationCounter { get; private set; }
+        internal double DpiX { get; }
 
-        /// <summary>
-        /// Notify that workbook data has been changed which means that cached formula values
-        /// need to be re-evaluated.
-        /// </summary>
-        internal void InvalidateFormulas()
-        {
-            RecalculationCounter++;
-        }
+        internal double DpiY { get; }
+
+        internal XLPivotCaches PivotCachesInternal { get; }
+
+        internal SharedStringTable SharedStringTable { get; } = new();
 
         #region Nested Type : XLLoadSource
 
@@ -156,15 +151,25 @@ namespace ClosedXML.Excel
             get { return WorksheetsInternal; }
         }
 
+        internal XLDefinedNames DefinedNamesInternal { get; }
+
+        [Obsolete($"Use {nameof(DefinedNames)} instead.")]
+        public IXLDefinedNames NamedRanges => DefinedNamesInternal;
+
         /// <summary>
         ///   Gets an object to manipulate this workbook's named ranges.
         /// </summary>
-        public IXLNamedRanges NamedRanges { get; private set; }
+        public IXLDefinedNames DefinedNames => DefinedNamesInternal;
 
         /// <summary>
         ///   Gets an object to manipulate this workbook's theme.
         /// </summary>
         public IXLTheme Theme { get; private set; }
+
+        /// <summary>
+        /// All pivot caches in the workbook, whether they have a pivot table or not.
+        /// </summary>
+        public IXLPivotCaches PivotCaches => PivotCachesInternal;
 
         /// <summary>
         ///   Gets or sets the default style for the workbook.
@@ -288,54 +293,86 @@ namespace ClosedXML.Excel
             };
         }
 
-        public IXLNamedRange NamedRange(String rangeName)
+#nullable enable
+        [Obsolete($"Use {nameof(DefinedName)} instead.")]
+        public IXLDefinedName? NamedRange(String name) => DefinedName(name);
+
+        /// <inheritdoc/>
+        public IXLDefinedName? DefinedName(String name)
         {
-            if (rangeName.Contains("!"))
+            if (name.Contains("!"))
             {
-                var split = rangeName.Split('!');
+                var split = name.Split('!');
                 var first = split[0];
                 var wsName = first.StartsWith("'") ? first.Substring(1, first.Length - 2) : first;
-                var name = split[1];
-                if (TryGetWorksheet(wsName, out IXLWorksheet ws))
+                var sheetlessName = split[1];
+                if (TryGetWorksheet(wsName, out XLWorksheet ws))
                 {
-                    var range = ws.NamedRange(name);
-                    return range ?? NamedRange(name);
+                    if (ws.DefinedNames.TryGetScopedValue(sheetlessName, out var sheetDefinedName))
+                        return sheetDefinedName;
                 }
-                return null;
+
+                name = sheetlessName;
             }
-            return NamedRanges.NamedRange(rangeName);
+
+            return DefinedNamesInternal.TryGetScopedValue(name, out var definedName) ? definedName : null;
         }
+#nullable disable
 
         public Boolean TryGetWorksheet(String name, out IXLWorksheet worksheet)
         {
-            return Worksheets.TryGetWorksheet(name, out worksheet);
+            if (TryGetWorksheet(name, out XLWorksheet foundSheet))
+            {
+                worksheet = foundSheet;
+                return true;
+            }
+
+            worksheet = default;
+            return false;
+        }
+
+        internal Boolean TryGetWorksheet(String name, [NotNullWhen(true)] out XLWorksheet worksheet)
+        {
+            return WorksheetsInternal.TryGetWorksheet(name, out worksheet);
         }
 
         public IXLRange RangeFromFullAddress(String rangeAddress, out IXLWorksheet ws)
         {
-            ws = null;
-            if (!rangeAddress.Contains('!')) return null;
+            if (!rangeAddress.Contains('!'))
+            {
+                ws = null;
+                return null;
+            }
 
             var split = rangeAddress.Split('!');
             var wsName = split[0].UnescapeSheetName();
-            if (TryGetWorksheet(wsName, out ws))
+            if (TryGetWorksheet(wsName, out XLWorksheet sheet))
             {
-                return ws.Range(split[1]);
+                ws = sheet;
+                return sheet.Range(split[1]);
             }
+
+            ws = null;
             return null;
         }
 
         public IXLCell CellFromFullAddress(String cellAddress, out IXLWorksheet ws)
         {
-            ws = null;
-            if (!cellAddress.Contains('!')) return null;
+            if (!cellAddress.Contains('!'))
+            {
+                ws = null;
+                return null;
+            }
 
             var split = cellAddress.Split('!');
             var wsName = split[0].UnescapeSheetName();
-            if (TryGetWorksheet(wsName, out ws))
+            if (TryGetWorksheet(wsName, out XLWorksheet sheet))
             {
-                return ws.Cell(split[1]);
+                ws = sheet;
+                return sheet.Cell(split[1]);
             }
+
+            ws = null;
             return null;
         }
 
@@ -406,7 +443,10 @@ namespace ClosedXML.Excel
         public void SaveAs(String file, SaveOptions options)
         {
             checkForWorksheetsPresent();
-            PathHelper.CreateDirectory(Path.GetDirectoryName(file));
+
+            var directoryName = Path.GetDirectoryName(file);
+            if (!string.IsNullOrWhiteSpace(directoryName)) Directory.CreateDirectory(directoryName);
+
             if (_loadSource == XLLoadSource.New)
             {
                 if (File.Exists(file))
@@ -517,7 +557,7 @@ namespace ClosedXML.Excel
                     using (var ms = new MemoryStream())
                     {
                         CreatePackage(ms, true, _spreadsheetDocumentType, options);
-                        // not really nessesary, because I changed CopyStream too.
+                        // not really necessary, because I changed CopyStream too.
                         // but for better understanding and if somebody in the future
                         // provide an changed version of CopyStream
                         ms.Position = 0;
@@ -562,14 +602,49 @@ namespace ClosedXML.Excel
 
         public IXLTable Table(string tableName, StringComparison comparisonType = StringComparison.OrdinalIgnoreCase)
         {
-            var table = this.Worksheets
-                .SelectMany(ws => ws.Tables)
-                .FirstOrDefault(t => t.Name.Equals(tableName, comparisonType));
-
-            if (table == null)
+            if (!TryGetTable(tableName, out var table, comparisonType))
                 throw new ArgumentOutOfRangeException($"Table {tableName} was not found.");
 
             return table;
+        }
+
+        /// <summary>
+        /// Try to find a table with <paramref name="tableName"/> in a workbook.
+        /// </summary>
+        internal bool TryGetTable(string tableName, out XLTable table, StringComparison comparisonType = StringComparison.OrdinalIgnoreCase)
+        {
+            table = WorksheetsInternal
+                .SelectMany<XLWorksheet, XLTable>(ws => ws.Tables)
+                .FirstOrDefault(t => t.Name.Equals(tableName, comparisonType));
+
+            return table is not null;
+        }
+
+        /// <summary>
+        /// Try to find a table that covers same area as the <paramref name="area"/> in a workbook.
+        /// </summary>
+        internal bool TryGetTable(XLBookArea area, out XLTable foundTable)
+        {
+            foreach (var sheet in WorksheetsInternal)
+            {
+                if (XLHelper.SheetComparer.Equals(sheet.Name, area.Name))
+                {
+                    foreach (var table in sheet.Tables)
+                    {
+                        if (table.Area != area.Area)
+                            continue;
+
+                        foundTable = table;
+                        return true;
+                    }
+
+                    // No other sheet has correct name.
+                    break;
+                }
+            }
+
+            foundTable = null;
+            return false;
         }
 
         public IXLWorksheet Worksheet(String name)
@@ -629,7 +704,6 @@ namespace ClosedXML.Excel
         /// <param name="searchText">The search text.</param>
         /// <param name="compareOptions">The compare options.</param>
         /// <param name="searchFormulae">if set to <c>true</c> search formulae instead of cell values.</param>
-        /// <returns></returns>
         public IEnumerable<IXLCell> Search(String searchText, CompareOptions compareOptions = CompareOptions.Ordinal, Boolean searchFormulae = false)
         {
             foreach (var ws in WorksheetsInternal)
@@ -654,19 +728,65 @@ namespace ClosedXML.Excel
         ///   Creates a new Excel workbook.
         /// </summary>
         public XLWorkbook()
-            : this(XLEventTracking.Enabled)
+            : this(new LoadOptions())
         {
         }
 
         internal XLWorkbook(String file, Boolean asTemplate)
-            : this(XLEventTracking.Enabled)
+            : this(new LoadOptions())
         {
             LoadSheetsFromTemplate(file);
         }
 
-        public XLWorkbook(XLEventTracking eventTracking)
+        /// <summary>
+        ///   Opens an existing workbook from a file.
+        /// </summary>
+        /// <param name = "file">The file to open.</param>
+        public XLWorkbook(String file)
+            : this(file, new LoadOptions())
         {
-            EventTracking = eventTracking;
+        }
+
+        public XLWorkbook(String file, LoadOptions loadOptions)
+            : this(loadOptions)
+        {
+            _loadSource = XLLoadSource.File;
+            _originalFile = file;
+            _spreadsheetDocumentType = GetSpreadsheetDocumentType(_originalFile);
+            Load(file);
+
+            if (loadOptions.RecalculateAllFormulas)
+                this.RecalculateAllFormulas();
+        }
+
+        /// <summary>
+        ///   Opens an existing workbook from a stream.
+        /// </summary>
+        /// <param name = "stream">The stream to open.</param>
+        public XLWorkbook(Stream stream)
+            : this(stream, new LoadOptions())
+        {
+        }
+
+        public XLWorkbook(Stream stream, LoadOptions loadOptions)
+            : this(loadOptions)
+        {
+            _loadSource = XLLoadSource.Stream;
+            _originalStream = stream;
+            Load(stream);
+
+            if (loadOptions.RecalculateAllFormulas)
+                this.RecalculateAllFormulas();
+        }
+
+        public XLWorkbook(LoadOptions loadOptions)
+        {
+            if (loadOptions is null)
+                throw new ArgumentNullException(nameof(loadOptions));
+
+            DpiX = loadOptions.Dpi.X;
+            DpiY = loadOptions.Dpi.Y;
+            GraphicEngine = loadOptions.GraphicEngine ?? LoadOptions.DefaultGraphicEngine ?? DefaultGraphicEngine.Instance.Value;
             Protection = new XLWorkbookProtection(DefaultProtectionAlgorithm);
             DefaultRowHeight = 15;
             DefaultColumnWidth = 8.43;
@@ -688,64 +808,11 @@ namespace ClosedXML.Excel
             ShowZeros = DefaultShowZeros;
             RightToLeft = DefaultRightToLeft;
             WorksheetsInternal = new XLWorksheets(this);
-            NamedRanges = new XLNamedRanges(this);
+            DefinedNamesInternal = new XLDefinedNames(this);
+            PivotCachesInternal = new XLPivotCaches(this);
             CustomProperties = new XLCustomProperties(this);
             ShapeIdManager = new XLIdManager();
             Author = Environment.UserName;
-        }
-
-        public XLWorkbook(LoadOptions loadOptions)
-            : this(loadOptions.EventTracking)
-        {
-        }
-
-        /// <summary>
-        ///   Opens an existing workbook from a file.
-        /// </summary>
-        /// <param name = "file">The file to open.</param>
-        public XLWorkbook(String file)
-            : this(file, XLEventTracking.Enabled)
-        {
-        }
-
-        public XLWorkbook(String file, XLEventTracking eventTracking)
-            : this(eventTracking)
-        {
-            _loadSource = XLLoadSource.File;
-            _originalFile = file;
-            _spreadsheetDocumentType = GetSpreadsheetDocumentType(_originalFile);
-            Load(file);
-        }
-
-        public XLWorkbook(String file, LoadOptions loadOptions)
-            : this(file, loadOptions.EventTracking)
-        {
-            if (loadOptions.RecalculateAllFormulas)
-                this.RecalculateAllFormulas();
-        }
-
-        /// <summary>
-        ///   Opens an existing workbook from a stream.
-        /// </summary>
-        /// <param name = "stream">The stream to open.</param>
-        public XLWorkbook(Stream stream)
-            : this(stream, XLEventTracking.Enabled)
-        {
-        }
-
-        public XLWorkbook(Stream stream, XLEventTracking eventTracking)
-            : this(eventTracking)
-        {
-            _loadSource = XLLoadSource.Stream;
-            _originalStream = stream;
-            Load(stream);
-        }
-
-        public XLWorkbook(Stream stream, LoadOptions loadOptions)
-            : this(stream, loadOptions.EventTracking)
-        {
-            if (loadOptions.RecalculateAllFormulas)
-                this.RecalculateAllFormulas();
         }
 
         #endregion Constructor
@@ -763,7 +830,7 @@ namespace ClosedXML.Excel
 
         public IXLCell Cell(String namedCell)
         {
-            var namedRange = NamedRange(namedCell);
+            var namedRange = DefinedName(namedCell);
             if (namedRange != null)
             {
                 return namedRange.Ranges?.FirstOrDefault()?.FirstCell();
@@ -779,7 +846,7 @@ namespace ClosedXML.Excel
 
         public IXLRange Range(String range)
         {
-            var namedRange = NamedRange(range);
+            var namedRange = DefinedName(range);
             if (namedRange != null)
                 return namedRange.Ranges.FirstOrDefault();
             else
@@ -805,20 +872,12 @@ namespace ClosedXML.Excel
             Worksheets.ForEach(w => (w as XLWorksheet).Cleanup());
         }
 
-#if _NET40_
-        public void Dispose()
-        {
-            // net40 doesn't support Janitor.Fody, so let's dispose manually
-            DisposeManaged();
-        }
-#else
 
         public void Dispose()
         {
-            // Leave this empty (for non net40 targets) so that Janitor.Fody can do its work
+            // Leave this empty so that Janitor.Fody can do its work
         }
 
-#endif
 
         public Boolean Use1904DateSystem { get; set; }
 
@@ -853,11 +912,6 @@ namespace ClosedXML.Excel
             return Worksheets.Add(sheetName, position);
         }
 
-        public IXLWorksheet AddWorksheet(DataTable dataTable)
-        {
-            return Worksheets.Add(dataTable);
-        }
-
         public void AddWorksheet(DataSet dataSet)
         {
             Worksheets.Add(dataSet);
@@ -868,21 +922,31 @@ namespace ClosedXML.Excel
             worksheet.CopyTo(this, worksheet.Name);
         }
 
+        public IXLWorksheet AddWorksheet(DataTable dataTable)
+        {
+            return Worksheets.Add(dataTable);
+        }
+
         public IXLWorksheet AddWorksheet(DataTable dataTable, String sheetName)
         {
             return Worksheets.Add(dataTable, sheetName);
         }
 
-        private XLCalcEngine _calcEngine;
-
-        private XLCalcEngine CalcEngine
+        public IXLWorksheet AddWorksheet(DataTable dataTable, String sheetName, String tableName)
         {
-            get { return _calcEngine ?? (_calcEngine = new XLCalcEngine(this)); }
+            return Worksheets.Add(dataTable, sheetName, tableName);
         }
 
-        public Object Evaluate(String expression)
+        private XLCalcEngine _calcEngine;
+
+        internal XLCalcEngine CalcEngine
         {
-            return CalcEngine.Evaluate(expression);
+            get { return _calcEngine ??= new XLCalcEngine(CultureInfo.CurrentCulture); }
+        }
+
+        public XLCellValue Evaluate(String expression)
+        {
+            return CalcEngine.EvaluateFormula(expression, this).ToCellValue();
         }
 
         /// <summary>
@@ -890,8 +954,10 @@ namespace ClosedXML.Excel
         /// </summary>
         public void RecalculateAllFormulas()
         {
-            InvalidateFormulas();
-            Worksheets.ForEach(sheet => sheet.RecalculateAllFormulas());
+            foreach (var sheet in WorksheetsInternal)
+                sheet.Internals.CellsCollection.FormulaSlice.MarkDirty(XLSheetRange.Full);
+
+            CalcEngine.Recalculate(this, null);
         }
 
         private static XLCalcEngine _calcEngineExpr;
@@ -899,12 +965,15 @@ namespace ClosedXML.Excel
 
         private static XLCalcEngine CalcEngineExpr
         {
-            get { return _calcEngineExpr ?? (_calcEngineExpr = new XLCalcEngine()); }
+            get { return _calcEngineExpr ??= new XLCalcEngine(CultureInfo.InvariantCulture); }
         }
 
-        public static Object EvaluateExpr(String expression)
+        /// <summary>
+        /// Evaluate a formula and return a value. Formulas with references don't work and culture used for conversion is invariant.
+        /// </summary>
+        public static XLCellValue EvaluateExpr(String expression)
         {
-            return CalcEngineExpr.Evaluate(expression);
+            return CalcEngineExpr.EvaluateFormula(expression).ToCellValue();
         }
 
         public String Author { get; set; }
@@ -961,38 +1030,16 @@ namespace ClosedXML.Excel
             }
         }
 
-        [Obsolete("Use Protect(String password, Algorithm algorithm, TElement allowedElements)")]
-        public IXLWorkbookProtection Protect(Boolean lockStructure, Boolean lockWindows, String password)
+        public IXLWorkbookProtection Protect(Algorithm algorithm = DefaultProtectionAlgorithm)
         {
-            var allowedElements = XLWorkbookProtectionElements.Everything;
-
-            var protection = Protection.Protect(password, DefaultProtectionAlgorithm, allowedElements);
-
-            if (lockStructure)
-                protection.DisallowElement(XLWorkbookProtectionElements.Structure);
-
-            if (lockWindows)
-                protection.DisallowElement(XLWorkbookProtectionElements.Windows);
-
-            return protection;
+            return Protection.Protect(algorithm);
         }
 
-        public IXLWorkbookProtection Protect()
-        {
-            return Protection.Protect();
-        }
+        public IXLWorkbookProtection Protect(XLWorkbookProtectionElements allowedElements)
+            => Protection.Protect(allowedElements);
 
-        [Obsolete("Use Protect(String password, Algorithm algorithm, TElement allowedElements)")]
-        public IXLWorkbookProtection Protect(Boolean lockStructure)
-        {
-            return Protect(lockStructure, lockWindows: false, password: null);
-        }
-
-        [Obsolete("Use Protect(String password, Algorithm algorithm, TElement allowedElements)")]
-        public IXLWorkbookProtection Protect(Boolean lockStructure, Boolean lockWindows)
-        {
-            return Protect(lockStructure, lockWindows, null);
-        }
+        public IXLWorkbookProtection Protect(Algorithm algorithm, XLWorkbookProtectionElements allowedElements)
+            => Protection.Protect(algorithm, allowedElements);
 
         public IXLWorkbookProtection Protect(String password, Algorithm algorithm = DefaultProtectionAlgorithm)
 
@@ -1005,15 +1052,24 @@ namespace ClosedXML.Excel
             return Protection.Protect(password, algorithm, allowedElements);
         }
 
-        IXLElementProtection IXLProtectable.Protect()
+        IXLElementProtection IXLProtectable.Protect(Algorithm algorithm)
         {
-            return Protect();
+            return Protect(algorithm);
         }
 
         IXLElementProtection IXLProtectable.Protect(string password, Algorithm algorithm)
         {
             return Protect(password, algorithm);
         }
+
+        IXLWorkbookProtection IXLProtectable<IXLWorkbookProtection, XLWorkbookProtectionElements>.Protect(XLWorkbookProtectionElements allowedElements)
+            => Protect(allowedElements);
+
+        IXLWorkbookProtection IXLProtectable<IXLWorkbookProtection, XLWorkbookProtectionElements>.Protect(Algorithm algorithm, XLWorkbookProtectionElements allowedElements)
+            => Protect(algorithm, allowedElements);
+
+        IXLWorkbookProtection IXLProtectable<IXLWorkbookProtection, XLWorkbookProtectionElements>.Protect(string password, Algorithm algorithm, XLWorkbookProtectionElements allowedElements)
+            => Protect(password, algorithm, allowedElements);
 
         public IXLWorkbookProtection Unprotect()
         {
@@ -1035,6 +1091,22 @@ namespace ClosedXML.Excel
             return Unprotect(password);
         }
 
+        /// <summary>
+        /// Notify various component of a workbook that sheet has been added.
+        /// </summary>
+        internal void NotifyWorksheetAdded(XLWorksheet newSheet)
+        {
+            _calcEngine.OnAddedSheet(newSheet);
+        }
+
+        /// <summary>
+        /// Notify various component of a workbook that sheet is about to be removed.
+        /// </summary>
+        internal void NotifyWorksheetDeleting(XLWorksheet sheet)
+        {
+            _calcEngine.OnDeletingSheet(sheet);
+        }
+
         public override string ToString()
         {
             switch (_loadSource)
@@ -1050,22 +1122,6 @@ namespace ClosedXML.Excel
 
                 default:
                     throw new NotImplementedException();
-            }
-        }
-
-        public void SuspendEvents()
-        {
-            foreach (var ws in WorksheetsInternal)
-            {
-                ws.SuspendEvents();
-            }
-        }
-
-        public void ResumeEvents()
-        {
-            foreach (var ws in WorksheetsInternal)
-            {
-                ws.ResumeEvents();
             }
         }
     }

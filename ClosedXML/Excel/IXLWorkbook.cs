@@ -1,9 +1,12 @@
+#nullable disable
+
 // Keep this file CodeMaid organised and cleaned
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.IO;
+using ClosedXML.Excel.CalcEngine.Exceptions;
 
 namespace ClosedXML.Excel
 {
@@ -50,18 +53,17 @@ namespace ClosedXML.Excel
 
         Boolean FullPrecision { get; set; }
 
-        //Boolean IsPasswordProtected { get; }
-
-        //Boolean IsProtected { get; }
-
         Boolean LockStructure { get; set; }
 
         Boolean LockWindows { get; set; }
 
+        [Obsolete($"Use {nameof(DefinedNames)} instead.")]
+        IXLDefinedNames NamedRanges { get; }
+
         /// <summary>
-        ///   Gets an object to manipulate this workbook's named ranges.
+        ///   Gets an object to manipulate this workbook's defined names.
         /// </summary>
-        IXLNamedRanges NamedRanges { get; }
+        IXLDefinedNames DefinedNames { get; }
 
         /// <summary>
         ///   Gets or sets the default outline options for the workbook.
@@ -74,6 +76,12 @@ namespace ClosedXML.Excel
         ///   <para>All new worksheets will use these page options.</para>
         /// </summary>
         IXLPageSetup PageOptions { get; set; }
+
+        /// <summary>
+        ///   Gets all pivot caches in a workbook. A one cache can be
+        ///   used by multiple tables. Unused caches are not saved.
+        /// </summary>
+        IXLPivotCaches PivotCaches { get; }
 
         /// <summary>
         ///   Gets or sets the workbook's properties.
@@ -133,13 +141,35 @@ namespace ClosedXML.Excel
 
         IXLWorksheet AddWorksheet(String sheetName, Int32 position);
 
-        IXLWorksheet AddWorksheet(DataTable dataTable);
-
         void AddWorksheet(DataSet dataSet);
 
         void AddWorksheet(IXLWorksheet worksheet);
 
+        /// <summary>
+        /// Add a worksheet with a table at Cell(row:1, column:1). The dataTable's name is used for the
+        /// worksheet name. The name of a table will be generated as <em>Table{number suffix}</em>.
+        /// </summary>
+        /// <param name="dataTable">Datatable to insert</param>
+        /// <returns>Inserted Worksheet</returns>
+        IXLWorksheet AddWorksheet(DataTable dataTable);
+
+        /// <summary>
+        /// Add a worksheet with a table at Cell(row:1, column:1). The sheetName provided is used for the
+        /// worksheet name. The name of a table will be generated as <em>Table{number suffix}</em>.
+        /// </summary>
+        /// <param name="dataTable">dataTable to insert as Excel Table</param>
+        /// <param name="sheetName">Worksheet and Excel Table name</param>
+        /// <returns>Inserted Worksheet</returns>
         IXLWorksheet AddWorksheet(DataTable dataTable, String sheetName);
+
+        /// <summary>
+        /// Add a worksheet with a table at Cell(row:1, column:1).
+        /// </summary>
+        /// <param name="dataTable">dataTable to insert as Excel Table</param>
+        /// <param name="sheetName">Worksheet name</param>
+        /// <param name="tableName">Excel Table name</param>
+        /// <returns>Inserted Worksheet</returns>
+        IXLWorksheet AddWorksheet(DataTable dataTable, String sheetName, String tableName);
 
         IXLCell Cell(String namedCell);
 
@@ -147,7 +177,14 @@ namespace ClosedXML.Excel
 
         IXLCustomProperty CustomProperty(String name);
 
-        Object Evaluate(String expression);
+        /// <summary>
+        /// Evaluate a formula expression.
+        /// </summary>
+        /// <param name="expression">Formula expression to evaluate.</param>
+        /// <exception cref="MissingContextException">
+        /// If the expression contains a function that requires a context (e.g. current cell or worksheet).
+        /// </exception>
+        XLCellValue Evaluate(String expression);
 
         IXLCells FindCells(Func<IXLCell, Boolean> predicate);
 
@@ -155,16 +192,31 @@ namespace ClosedXML.Excel
 
         IXLRows FindRows(Func<IXLRow, Boolean> predicate);
 
-        IXLNamedRange NamedRange(String rangeName);
+#nullable enable
+        [Obsolete($"Use {nameof(DefinedName)} instead.")]
+        IXLDefinedName? NamedRange(String name);
 
-        [Obsolete("Use Protect(String password, Algorithm algorithm, TElement allowedElements)")]
-        IXLWorkbookProtection Protect(Boolean lockStructure, Boolean lockWindows, String password);
-
-        [Obsolete("Use Protect(String password, Algorithm algorithm, TElement allowedElements)")]
-        IXLWorkbookProtection Protect(Boolean lockStructure);
-
-        [Obsolete("Use Protect(String password, Algorithm algorithm, TElement allowedElements)")]
-        IXLWorkbookProtection Protect(Boolean lockStructure, Boolean lockWindows);
+        /// <summary>
+        /// Try to find a defined name. If <paramref name="name"/> specifies a sheet, try to find
+        /// name in the sheet first and fall back to the workbook if not found in the sheet.
+        /// <para>
+        /// <example>
+        /// Requested name <c>Sheet1!Name</c> will first try to find <c>Name</c> in a sheet
+        /// <c>Sheet1</c> (if such sheet exists) and if not found there, tries to find <c>Name</c>
+        /// in workbook.
+        /// </example>
+        /// </para>
+        /// <para>
+        /// <example>
+        /// Requested name <c>Name</c> will be searched only in a workbooks <see cref="DefinedNames"/>.
+        /// </example>
+        /// </para>
+        /// </summary>
+        /// <param name="name">Name of requested name, either plain name (e.g. <c>Name</c>) or with
+        /// sheet specified (e.g. <c>Sheet!Name</c>).</param>
+        /// <returns>Found name or null.</returns>
+        IXLDefinedName? DefinedName(String name);
+#nullable disable
 
         IXLRange Range(String range);
 
@@ -219,7 +271,6 @@ namespace ClosedXML.Excel
         /// <param name="searchText">The search text.</param>
         /// <param name="compareOptions">The compare options.</param>
         /// <param name="searchFormulae">if set to <c>true</c> search formulae instead of cell values.</param>
-        /// <returns></returns>
         IEnumerable<IXLCell> Search(String searchText, CompareOptions compareOptions = CompareOptions.Ordinal, Boolean searchFormulae = false);
 
         XLWorkbook SetLockStructure(Boolean value);

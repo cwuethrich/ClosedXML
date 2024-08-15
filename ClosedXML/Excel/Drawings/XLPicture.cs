@@ -1,12 +1,13 @@
+#nullable disable
+
 // Keep this file CodeMaid organised and cleaned
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
-using System.Reflection;
+using ClosedXML.Graphics;
 
 namespace ClosedXML.Excel.Drawings
 {
@@ -14,83 +15,28 @@ namespace ClosedXML.Excel.Drawings
     internal class XLPicture : IXLPicture
     {
         private const String InvalidNameChars = @":\/?*[]";
-        private static IDictionary<XLPictureFormat, ImageFormat> FormatMap;
-        private Int32 height;
-        private Int32 id;
-        private String name = string.Empty;
-        private Int32 width;
+        private Int32 _height;
+        private Int32 _id;
+        private String _name = string.Empty;
+        private Int32 _width;
 
-        static XLPicture()
+        internal XLPicture(XLWorksheet worksheet, Stream stream)
+            : this(worksheet, stream, XLPictureFormat.Unknown)
         {
-            var properties = typeof(ImageFormat).GetProperties(BindingFlags.Static | BindingFlags.Public);
-            FormatMap = Enum.GetValues(typeof(XLPictureFormat))
-                .Cast<XLPictureFormat>()
-                .Where(pf => properties.Any(pi => pi.Name.Equals(pf.ToString(), StringComparison.OrdinalIgnoreCase)))
-                .ToDictionary(
-                    pf => pf,
-                    pf => properties.Single(pi => pi.Name.Equals(pf.ToString(), StringComparison.OrdinalIgnoreCase)).GetValue(null, null) as ImageFormat
-                );
-        }
-
-        internal XLPicture(IXLWorksheet worksheet, Stream stream)
-            : this(worksheet)
-        {
-            if (stream == null) throw new ArgumentNullException(nameof(stream));
-
-            this.ImageStream = new MemoryStream();
-            {
-                stream.Position = 0;
-                stream.CopyTo(ImageStream);
-                ImageStream.Seek(0, SeekOrigin.Begin);
-
-                using (var bitmap = new Bitmap(ImageStream))
-                {
-                    if (FormatMap.Values.Select(f => f.Guid).Contains(bitmap.RawFormat.Guid))
-                        this.Format = FormatMap.Single(f => f.Value.Guid.Equals(bitmap.RawFormat.Guid)).Key;
-
-                    DeduceDimensionsFromBitmap(bitmap);
-                }
-                ImageStream.Seek(0, SeekOrigin.Begin);
-            }
         }
 
         internal XLPicture(IXLWorksheet worksheet, Stream stream, XLPictureFormat format)
             : this(worksheet)
         {
             if (stream == null) throw new ArgumentNullException(nameof(stream));
-            this.Format = format;
+
+            var info = worksheet.Workbook.GraphicEngine.GetPictureInfo(stream, format);
+            Init(info);
 
             this.ImageStream = new MemoryStream();
-            {
-                stream.Position = 0;
-                stream.CopyTo(ImageStream);
-                ImageStream.Seek(0, SeekOrigin.Begin);
-
-                using (var bitmap = new Bitmap(ImageStream))
-                {
-                    if (FormatMap.TryGetValue(this.Format, out ImageFormat imageFormat) && imageFormat.Guid != bitmap.RawFormat.Guid)
-                        throw new ArgumentException("The picture format in the stream and the parameter don't match");
-
-                    DeduceDimensionsFromBitmap(bitmap);
-                }
-                ImageStream.Seek(0, SeekOrigin.Begin);
-            }
-        }
-
-        internal XLPicture(IXLWorksheet worksheet, Bitmap bitmap)
-            : this(worksheet)
-        {
-            if (bitmap == null) throw new ArgumentNullException(nameof(bitmap));
-            this.ImageStream = new MemoryStream();
-            bitmap.Save(ImageStream, bitmap.RawFormat);
+            stream.Position = 0;
+            stream.CopyTo(ImageStream);
             ImageStream.Seek(0, SeekOrigin.Begin);
-            DeduceDimensionsFromBitmap(bitmap);
-
-            var formats = FormatMap.Where(f => f.Value.Guid.Equals(bitmap.RawFormat.Guid));
-            if (!formats.Any() || formats.Count() > 1)
-                throw new ArgumentException("Unsupported or unknown image format in bitmap");
-
-            this.Format = formats.Single().Key;
         }
 
         private XLPicture(IXLWorksheet worksheet)
@@ -105,10 +51,8 @@ namespace ClosedXML.Excel.Drawings
 
             // Calculate default picture ID
             var allPictures = worksheet.Workbook.Worksheets.SelectMany(ws => ws.Pictures);
-            if (allPictures.Any())
-                this.id = allPictures.Max(p => p.Id) + 1;
-            else
-                this.id = 1;
+            var freeId = allPictures.Select(x => x.Id).DefaultIfEmpty(0).Max() + 1;
+            _id = freeId;
         }
 
         public IXLCell BottomRightCell
@@ -127,28 +71,28 @@ namespace ClosedXML.Excel.Drawings
             }
         }
 
-        public XLPictureFormat Format { get; private set; }
+        public XLPictureFormat Format { get; private set; } = XLPictureFormat.Unknown;
 
         public Int32 Height
         {
-            get { return height; }
+            get { return _height; }
             set
             {
                 if (this.Placement == XLPicturePlacement.MoveAndSize)
                     throw new ArgumentException("To set the height, the placement should be FreeFloating or Move");
-                height = value;
+                _height = value;
             }
         }
 
         public Int32 Id
         {
-            get { return id; }
+            get { return _id; }
             internal set
             {
                 if ((Worksheet.Pictures.FirstOrDefault(p => p.Id.Equals(value)) ?? this) != this)
                     throw new ArgumentException($"The picture ID '{value}' already exists.");
 
-                id = value;
+                _id = value;
             }
         }
 
@@ -168,10 +112,10 @@ namespace ClosedXML.Excel.Drawings
 
         public String Name
         {
-            get { return name; }
+            get { return _name; }
             set
             {
-                if (name == value) return;
+                if (_name == value) return;
 
                 if ((Worksheet.Pictures.FirstOrDefault(p => p.Name.Equals(value, StringComparison.OrdinalIgnoreCase)) ?? this) != this)
                     throw new ArgumentException($"The picture name '{value}' already exists.");
@@ -216,12 +160,12 @@ namespace ClosedXML.Excel.Drawings
 
         public Int32 Width
         {
-            get { return width; }
+            get { return _width; }
             set
             {
                 if (this.Placement == XLPicturePlacement.MoveAndSize)
                     throw new ArgumentException("To set the width, the placement should be FreeFloating or Move");
-                width = value;
+                _width = value;
             }
         }
 
@@ -246,28 +190,20 @@ namespace ClosedXML.Excel.Drawings
             Worksheet.Pictures.Delete(this.Name);
         }
 
+        #region IDisposable
+
         // Used by Janitor.Fody
         private void DisposeManaged()
         {
             this.ImageStream.Dispose();
         }
 
-#if _NET40_
-
         public void Dispose()
         {
-            // net40 doesn't support Janitor.Fody, so let's dispose manually
-            DisposeManaged();
+            // Leave this empty so that Janitor.Fody can do its work
         }
 
-#else
-
-        public void Dispose()
-        {
-            // Leave this empty (for non net40 targets) so that Janitor.Fody can do its work
-        }
-
-#endif
+        #endregion IDisposable
 
         /// <summary>
         /// Create a copy of the picture on the same worksheet.
@@ -411,38 +347,15 @@ namespace ClosedXML.Excel.Drawings
             if (value.Length > 31)
                 throw new ArgumentException("Picture names cannot be more than 31 characters");
 
-            name = value;
+            _name = value;
         }
 
-        private static ImageFormat FromMimeType(string mimeType)
+        private void Init(XLPictureInfo info)
         {
-            var guid = ImageCodecInfo.GetImageDecoders().FirstOrDefault(c => c.MimeType.Equals(mimeType, StringComparison.OrdinalIgnoreCase))?.FormatID;
-            if (!guid.HasValue) return null;
-            var property = typeof(System.Drawing.Imaging.ImageFormat).GetProperties(BindingFlags.Public | BindingFlags.Static)
-                .FirstOrDefault(pi => (pi.GetValue(null, null) as ImageFormat).Guid.Equals(guid.Value));
-
-            if (property == null) return null;
-            return (property.GetValue(null, null) as ImageFormat);
-        }
-
-        private static string GetMimeType(Image i)
-        {
-            var imgguid = i.RawFormat.Guid;
-            foreach (ImageCodecInfo codec in ImageCodecInfo.GetImageDecoders())
-            {
-                if (codec.FormatID == imgguid)
-                    return codec.MimeType;
-            }
-            return "image/unknown";
-        }
-
-        private void DeduceDimensionsFromBitmap(Bitmap bitmap)
-        {
-            this.OriginalWidth = bitmap.Width;
-            this.OriginalHeight = bitmap.Height;
-
-            this.width = bitmap.Width;
-            this.height = bitmap.Height;
+            Format = info.Format;
+            var size = info.GetSizePx(Worksheet.Workbook.DpiX, Worksheet.Workbook.DpiY);
+            _width = OriginalWidth = size.Width;
+            _height = OriginalHeight = size.Height;
         }
     }
 }

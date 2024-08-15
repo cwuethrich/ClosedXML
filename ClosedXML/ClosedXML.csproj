@@ -1,37 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net40;net46</TargetFrameworks>
-    <LangVersion>8.0</LangVersion>
-    <AssemblyName>ClosedXML</AssemblyName>
-    <PackageId>ClosedXML</PackageId>
-    <Version>0.95.2</Version>
-    <Authors>Francois Botha, Aleksei Pankratev, Manuel de Leon, Amir Ghezelbash</Authors>
-    <Owners>Francois Botha, Aleksei Pankratev</Owners>
-    <Company />
-    <Product>ClosedXML</Product>
-    <PackageReleaseNotes>See https://github.com/ClosedXML/ClosedXML/releases/tag/$(productVersion)</PackageReleaseNotes>
-    <Description>ClosedXML is a .NET library for reading, manipulating and writing Excel 2007+ (.xlsx, .xlsm) files. It aims to provide an intuitive and user-friendly interface to dealing with the underlying OpenXML API.</Description>
-    <Copyright>MIT</Copyright>
-    <PackageProjectUrl>https://github.com/ClosedXML/ClosedXML</PackageProjectUrl>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <PackageIcon>nuget-logo.png</PackageIcon>
-    <PackageIconUrl>https://raw.githubusercontent.com/ClosedXML/ClosedXML/develop/resources/logo/nuget-logo.png</PackageIconUrl>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <NoWarn>$(NoWarn);NU1605;CS1591</NoWarn>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Configurations>Debug;Release;Release.Signed</Configurations>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)'=='Release.Signed'">
-    <PackageId>ClosedXML.Signed</PackageId>
-    <OutputPath>bin\Release.Signed\</OutputPath>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <SignAssembly>true</SignAssembly>
-    <Optimize>true</Optimize>
-    <AssemblyOriginatorKeyFile>ClosedXML.snk</AssemblyOriginatorKeyFile>
-    <DefineConstants>$(DefineConstants);RELEASE;STRONGNAME</DefineConstants>
+    <LangVersion>11.0</LangVersion>
+    <TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
+    <!-- netstandard 2.0 doesn't contain nullable annotations for BCL, so we want to export
+         annotations for our consumers, but no warnings for our code. Warnings will be
+         emitted by netstandard2.1 target -->
+    <Nullable Condition="'$(TargetFramework)' == 'netstandard2.0'">annotations</Nullable>
+    <Nullable Condition="'$(TargetFramework)' == 'netstandard2.1'">enable</Nullable>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
@@ -39,40 +15,15 @@
     <Optimize>true</Optimize>
   </PropertyGroup>
 
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
-    <DefineConstants>$(DefineConstants);_NETSTANDARD_;_NETSTANDARD2_0_</DefineConstants>
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);NU1605;CS1591</NoWarn>
   </PropertyGroup>
 
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'net40' ">
-    <DefineConstants>$(DefineConstants);_NETFRAMEWORK_;_NET40_</DefineConstants>
-  </PropertyGroup>
-
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'net46' ">
-    <DefineConstants>$(DefineConstants);_NETFRAMEWORK_;_NET46_</DefineConstants>
-  </PropertyGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="Fody" Version="5.2.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Janitor.Fody" Version="1.6.8" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageReference Include="System.Drawing.Common" Version="4.5.0" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net40'">
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="WindowsBase" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net46'">
-    <PackageReference Include="Fody" Version="5.2.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Janitor.Fody" Version="1.6.8" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+  <ItemGroup>
+    <EmbeddedResource Include="Graphics\Fonts\CarlitoBare-Bold.ttf" />
+    <EmbeddedResource Include="Graphics\Fonts\CarlitoBare-BoldItalic.ttf" />
+    <EmbeddedResource Include="Graphics\Fonts\CarlitoBare-Italic.ttf" />
+    <EmbeddedResource Include="Graphics\Fonts\CarlitoBare-Regular.ttf" />
   </ItemGroup>
 
   <ItemGroup>
@@ -81,11 +32,28 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="DocumentFormat.OpenXml" Version="2.7.2" />
-    <PackageReference Include="ExcelNumberFormat" Version="1.0.10" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="[3.0.1,4.0.0)" />
+    <PackageReference Include="ExcelNumberFormat" Version="1.1.0" />
+    <PackageReference Include="Fody" Version="6.3.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Janitor.Fody" Version="1.9.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
+    <PackageReference Include="Polyfill" Version="1.29.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="RBush" Version="3.2.0" />
+    <PackageReference Include="SixLabors.Fonts" Version="1.0.0" />
+    <!-- Pre-6.0.0 System.IO.Packaging has a race condition https://github.com/dotnet/runtime/issues/43012 -->
+    <PackageReference Include="System.IO.Packaging" Version="8.0.0" />
+    <PackageReference Include="ClosedXML.Parser" Version="[1.2.0,2.0.0)" />
+  </ItemGroup>
 
-    <!-- SourceLink , see https://github.com/ctaggart/SourceLink -->
-    <PackageReference Include="SourceLink.Copy.PdbFiles" Version="2.8.3" PrivateAssets="All" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0-beta-63127-02" PrivateAssets="All" />
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="System.Buffers" Version="4.5.1" />
+    <PackageReference Include="System.Memory" Version="4.5.4" />
+    <PackageReference Include="Microsoft.Bcl.HashCode" Version="1.1.1" />
   </ItemGroup>
 </Project>

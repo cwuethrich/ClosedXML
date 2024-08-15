@@ -8,16 +8,18 @@ namespace ClosedXML.Excel
         #region Constructor
 
         /// <summary>
-        /// The direct contructor should only be used in <see cref="XLWorksheet.RangeFactory"/>.
+        /// The direct constructor should only be used in <see cref="XLWorksheet.RangeFactory"/>.
         /// </summary>
         public XLRangeRow(XLRangeParameters rangeParameters)
-            : base(rangeParameters.RangeAddress, (rangeParameters.DefaultStyle as XLStyle).Value)
+            : base(rangeParameters.RangeAddress, ((XLStyle)rangeParameters.DefaultStyle).Value)
         {
         }
 
         #endregion Constructor
 
         #region IXLRangeRow Members
+
+        IXLCells IXLRangeRow.Cells(string cellsInRow) => Cells(cellsInRow);
 
         public IXLCell Cell(int column)
         {
@@ -59,7 +61,7 @@ namespace ClosedXML.Excel
             return InsertColumnsBefore(numberOfColumns, expandRange).Cells();
         }
 
-        public override IXLCells Cells(string cellsInRow)
+        public override XLCells Cells(string cellsInRow)
         {
             var retVal = new XLCells(false, XLCellsUsedOptions.AllContents);
             var rangePairs = cellsInRow.Split(',');
@@ -95,9 +97,9 @@ namespace ClosedXML.Excel
             return this;
         }
 
-        public new IXLRangeRow CopyTo(IXLCell target)
+        public IXLRangeRow CopyTo(IXLCell target)
         {
-            base.CopyTo(target);
+            base.CopyTo((XLCell)target);
 
             int lastRowNumber = target.Address.RowNumber + RowCount() - 1;
             if (lastRowNumber > XLHelper.MaxRowNumber)
@@ -168,12 +170,6 @@ namespace ClosedXML.Excel
             }
 
             return retVal;
-        }
-
-        public IXLRangeRow SetDataType(XLDataType dataType)
-        {
-            DataType = dataType;
-            return this;
         }
 
         public IXLRow WorksheetRow()
@@ -251,8 +247,8 @@ namespace ClosedXML.Excel
                         {
                             case XLDataType.Text:
                                 comparison = e.MatchCase
-                                                 ? thisCell.InnerText.CompareTo(otherCell.InnerText)
-                                                 : String.Compare(thisCell.InnerText, otherCell.InnerText, true);
+                                                 ? thisCell.GetText().CompareTo(otherCell.GetText())
+                                                 : String.Compare(thisCell.GetText(), otherCell.GetText(), true);
                                 break;
 
                             case XLDataType.TimeSpan:
@@ -275,6 +271,8 @@ namespace ClosedXML.Excel
                                 throw new NotImplementedException();
                         }
                     }
+                    else if (thisCell.Value.IsUnifiedNumber && otherCell.Value.IsUnifiedNumber)
+                        comparison = thisCell.Value.GetUnifiedNumber().CompareTo(otherCell.Value.GetUnifiedNumber());
                     else if (e.MatchCase)
                         comparison = String.Compare(thisCell.GetString(), otherCell.GetString(), true);
                     else
@@ -355,13 +353,6 @@ namespace ClosedXML.Excel
             return this;
         }
 
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        public IXLRangeRow RowUsed(Boolean includeFormats)
-        {
-            return RowUsed(includeFormats
-                ? XLCellsUsedOptions.All
-                : XLCellsUsedOptions.AllContents);
-        }
 
         public IXLRangeRow RowUsed(XLCellsUsedOptions options = XLCellsUsedOptions.AllContents)
         {

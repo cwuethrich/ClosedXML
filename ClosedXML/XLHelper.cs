@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace ClosedXML.Excel
@@ -10,7 +10,7 @@ namespace ClosedXML.Excel
     /// <summary>
     /// 	Common methods
     /// </summary>
-    public static class XLHelper
+    public static partial class XLHelper
     {
         public const int MinRowNumber = 1;
         public const int MinColumnNumber = 1;
@@ -19,14 +19,27 @@ namespace ClosedXML.Excel
         public const String MaxColumnLetter = "XFD";
         public const Double Epsilon = 1e-10;
 
-        public static String LastCell { get { return $"{MaxColumnLetter}{MaxRowNumber}"; } }
+        public static Encoding NoBomUTF8 = new UTF8Encoding(false);
 
-        private static readonly Lazy<Graphics> graphics = new Lazy<Graphics>(() => Graphics.FromImage(new Bitmap(200, 200)));
-        internal static Graphics Graphics { get => graphics.Value; }
-        internal static Double DpiX { get => Graphics.DpiX; }
+        public static String LastCell { get { return $"{MaxColumnLetter}{MaxRowNumber}"; } }
 
         internal static readonly NumberStyles NumberStyle = NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign | NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite | NumberStyles.AllowExponent;
         internal static readonly CultureInfo ParseCulture = CultureInfo.InvariantCulture;
+
+        /// <summary>
+        /// Comparer used to compare sheet names.
+        /// </summary>
+        internal static readonly StringComparer SheetComparer = StringComparer.OrdinalIgnoreCase;
+
+        /// <summary>
+        /// Comparer used to compare defined names.
+        /// </summary>
+        internal static readonly StringComparer NameComparer = StringComparer.OrdinalIgnoreCase;
+
+        /// <summary>
+        /// Comparer of function names.
+        /// </summary>
+        internal static readonly StringComparer FunctionComparer = StringComparer.OrdinalIgnoreCase;
 
         internal static readonly Regex RCSimpleRegex = new Regex(
             @"^(r(((-\d)?\d*)|\[(-\d)?\d*\]))?(c(((-\d)?\d*)|\[(-\d)?\d*\]))?$"
@@ -108,7 +121,6 @@ namespace ClosedXML.Excel
         /// </summary>
         /// <param name="columnNumber">The column number to translate into a column letter.</param>
         /// <param name="trimToAllowed">if set to <c>true</c> the column letter will be restricted to the allowed range.</param>
-        /// <returns></returns>
         public static string GetColumnLetterFromNumber(int columnNumber, bool trimToAllowed = false)
         {
             if (trimToAllowed) columnNumber = TrimColumnNumber(columnNumber);
@@ -195,6 +207,9 @@ namespace ClosedXML.Excel
 
         public static Boolean IsValidRangeAddress(String rangeAddress)
         {
+            if (String.IsNullOrWhiteSpace(rangeAddress))
+                return false;
+
             return A1SimpleRegex.IsMatch(rangeAddress);
         }
 
@@ -221,48 +236,20 @@ namespace ClosedXML.Excel
             return range.Contains('-') ? range.Replace('-', ':').Split(':') : range.Split(':');
         }
 
-        public static Int32 GetPtFromPx(Double px)
-        {
-            return Convert.ToInt32(px * 72.0 / DpiX);
-        }
-
-        public static Double GetPxFromPt(Int32 pt)
-        {
-            return Convert.ToDouble(pt) * DpiX / 72.0;
-        }
-
         internal static IXLTableRows InsertRowsWithoutEvents(Func<int, bool, IXLRangeRows> insertFunc,
                                                              XLTableRange tableRange, Int32 numberOfRows,
                                                              Boolean expandTable)
         {
             var ws = tableRange.Worksheet;
-            var tracking = ws.EventTrackingEnabled;
-            ws.EventTrackingEnabled = false;
-
             var rows = new XLTableRows(ws.Style);
             var inserted = insertFunc(numberOfRows, false);
-            inserted.ForEach(r => rows.Add(new XLTableRow(tableRange, r as XLRangeRow)));
+            inserted.ForEach(r => rows.Add(new XLTableRow(tableRange, (XLRangeRow)r)));
 
             if (expandTable)
                 tableRange.Table.ExpandTableRows(numberOfRows);
 
-            ws.EventTrackingEnabled = tracking;
-
             return rows;
         }
-
-#if false
-// Not using this anymore, but keeping it around for in case we bring back .NET3.5 support.
-        public static bool IsNullOrWhiteSpace(string value)
-        {
-#if _NET35_
-            if (value == null) return true;
-            return value.All(c => char.IsWhiteSpace(c));
-#else
-            return String.IsNullOrWhiteSpace(value);
-#endif
-        }
-#endif
 
         private static readonly Regex A1RegexRelative = new Regex(
       @"(?<=\W)(?<one>\$?[a-zA-Z]{1,3}\$?\d{1,7})(?=\W)" // A1
@@ -342,20 +329,28 @@ namespace ClosedXML.Excel
             return TimeSpan.FromMilliseconds(roundedMilliseconds);
         }
 
-        public static Boolean ValidateName(String objectType, String newName, String oldName, IEnumerable<String> existingNames, out String message)
+        internal static Boolean ValidateName(String objectType, String newName, String oldName, IEnumerable<String> existingNames, out String message)
+        {
+            if (!ValidateName(objectType, newName, out message))
+                return false;
+
+            // Table names are case insensitive
+            if (!string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase)
+                && existingNames.Contains(newName, StringComparer.OrdinalIgnoreCase))
+            {
+                message = $"There is already a {objectType} named '{newName}'";
+                return false;
+            }
+
+            return true;
+        }
+
+        internal static Boolean ValidateName(String objectType, String newName, out String message)
         {
             message = "";
             if (String.IsNullOrWhiteSpace(newName))
             {
                 message = $"The {objectType} name '{newName}' is invalid";
-                return false;
-            }
-
-            // Table names are case insensitive
-            if (!oldName.Equals(newName, StringComparison.OrdinalIgnoreCase)
-                && existingNames.Contains(newName, StringComparer.OrdinalIgnoreCase))
-            {
-                message = $"There is already a {objectType} named '{newName}'";
                 return false;
             }
 
@@ -380,5 +375,92 @@ namespace ClosedXML.Excel
 
             return true;
         }
+
+        internal static double PixelsToPoints(double pixels, double dpi) => pixels * 72d / dpi;
+
+        internal static double PointsToPixels(double points, double dpi) => points * dpi / 72d;
+
+        /// <summary>
+        /// Convert size in pixels to a size in NoC (number of characters).
+        /// </summary>
+        /// <param name="px">Size in pixels.</param>
+        /// <param name="mdw">Size of maximum digit width in pixels.</param>
+        /// <returns>Size in NoC.</returns>
+        internal static double PixelToNoC(int px, int mdw)
+        {
+            // Pixel padding. Each side should have 2px for Calibri at 11pt plus 1 pixel for the grid line.
+            var pp = 2 * (int)Math.Ceiling(mdw / 4.0) + 1;
+
+            // NoC scales linearly with MDW, if size is at least 1 char (+padding)
+            if (px >= (mdw + pp))
+                return (px - pp) / (double)mdw;
+
+            // smaller sizes are scaled to the 1 NoC size
+            return px / (double)(mdw + pp);
+        }
+
+        /// <summary>
+        /// Convert size in NoC to size in pixels.
+        /// </summary>
+        /// <param name="noc">Size in number of characters.</param>
+        /// <param name="mdw">Maximum digit width in pixels.</param>
+        /// <returns>Size in pixels (not rounded).</returns>
+        internal static double NoCToPixels(double noc, int mdw)
+        {
+            var pp = 2 * (int)Math.Ceiling(mdw / 4.0) + 1;
+            if (noc < 1)
+                return noc * (mdw + pp);
+
+            return noc * mdw + pp;
+        }
+
+        /// <summary>
+        /// Convert size in number of characters to pixels.
+        /// </summary>
+        /// <param name="noc">Width</param>
+        /// <param name="font">Font used to determine mdw.</param>
+        /// <param name="workbook">Workbook for dpi and graphic engine.</param>
+        /// <returns>Width in pixels.</returns>
+        internal static int NoCToPixels(double noc, IXLFont font, XLWorkbook workbook)
+        {
+            var mdw = workbook.GraphicEngine.GetMaxDigitWidth(font, workbook.DpiX).RoundToInt();
+            return NoCToPixels(noc, mdw).RoundToInt();
+        }
+
+        /// <summary>
+        /// Convert width to pixels.
+        /// </summary>
+        /// <param name="width">Width from the source file, not NoC that is displayed in Excel as a width.</param>
+        /// <param name="mdw"></param>
+        /// <returns>Number of pixels.</returns>
+        internal static int WidthToPixels(double width, int mdw)
+        {
+            return (width * mdw).RoundToInt();
+        }
+
+        internal static double PixelsToWidth(double width, int mdw)
+        {
+            return Math.Truncate(width * mdw * 256) / 256d;
+        }
+
+        /// <summary>
+        /// Convert width (as a multiple of MDWs) into a NoCs (number displayed in Excel).
+        /// </summary>
+        /// <param name="width">Width in MDWs to convert.</param>
+        /// <param name="font">Font used to determine MDW.</param>
+        /// <param name="workbook">Workbook</param>
+        /// <returns>Width as a number of NoC.</returns>
+        internal static double ConvertWidthToNoC(double width, IXLFont font, XLWorkbook workbook)
+        {
+            var mdw = workbook.GraphicEngine.GetMaxDigitWidth(font, workbook.DpiX).RoundToInt();
+            var pixelsWidth = WidthToPixels(width, mdw);
+            var columnWidth = PixelToNoC(pixelsWidth, mdw);
+            return columnWidth;
+        }
+
+        /// <summary>
+        /// Convert degrees to radians.
+        /// </summary>
+        internal static double DegToRad(double angle) => Math.PI * angle / 180.0;
     }
 }

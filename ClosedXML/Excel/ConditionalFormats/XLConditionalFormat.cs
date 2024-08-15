@@ -1,3 +1,5 @@
+#nullable disable
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -59,7 +61,7 @@ namespace ClosedXML.Excel
             public int GetHashCode(IXLConditionalFormat obj)
             {
                 var xx = (XLConditionalFormat)obj;
-                var xStyle = (obj.Style as XLStyle).Value;
+                var xStyle = ((XLStyle)obj.Style).Value;
                 var xValues = xx.Values.Values.Where(v => !v.IsFormula).Select(v => v.Value);
                 if (obj.Ranges.Count > 0)
                     xValues = xValues
@@ -161,17 +163,13 @@ namespace ClosedXML.Excel
 
         public Guid Id { get; internal set; }
 
-        internal Int32 OriginalPriority { get; set; }
+        /// <summary>
+        /// Priority of formatting rule. Lower values have higher priority than higher values.
+        /// Minimum value is 1. It is basically used for ordering of CF during saving.
+        /// </summary>
+        internal Int32 Priority { get; set; }
 
         public Boolean CopyDefaultModify { get; set; }
-
-        public override IEnumerable<IXLStyle> Styles
-        {
-            get
-            {
-                yield return Style;
-            }
-        }
 
         protected override IEnumerable<XLStylizedBase> Children
         {

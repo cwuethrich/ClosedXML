@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
+using ClosedXML.Graphics;
 
 namespace ClosedXML.Excel
 {
@@ -16,7 +16,7 @@ namespace ClosedXML.Excel
         #region Constructor
 
         /// <summary>
-        /// The direct contructor should only be used in <see cref="XLWorksheet.RangeFactory"/>.
+        /// The direct constructor should only be used in <see cref="XLWorksheet.RangeFactory"/>.
         /// </summary>
         public XLColumn(XLWorksheet worksheet, Int32 column)
             : base(XLRangeAddress.EntireColumn(worksheet, column), worksheet.StyleValue)
@@ -31,19 +31,6 @@ namespace ClosedXML.Excel
         public override XLRangeType RangeType
         {
             get { return XLRangeType.Column; }
-        }
-
-        public override IEnumerable<IXLStyle> Styles
-        {
-            get
-            {
-                yield return Style;
-
-                int column = ColumnNumber();
-
-                foreach (XLCell cell in Worksheet.Internals.CellsCollection.GetCellsInColumn(column))
-                    yield return cell.Style;
-            }
         }
 
         protected override IEnumerable<XLStylizedBase> Children
@@ -61,6 +48,10 @@ namespace ClosedXML.Excel
         #region IXLColumn Members
 
         public Double Width { get; set; }
+
+        IXLCells IXLColumn.Cells(String cellsInColumn) => Cells(cellsInColumn);
+
+        IXLCells IXLColumn.Cells(Int32 firstRow, Int32 lastRow) => Cells(firstRow, lastRow);
 
         public void Delete()
         {
@@ -80,7 +71,7 @@ namespace ClosedXML.Excel
             return Cell(rowNumber, 1);
         }
 
-        public override IXLCells Cells(String cellsInColumn)
+        public override XLCells Cells(String cellsInColumn)
         {
             var retVal = new XLCells(false, XLCellsUsedOptions.All);
             var rangePairs = cellsInColumn.Split(',');
@@ -94,7 +85,7 @@ namespace ClosedXML.Excel
             return Cells(true, XLCellsUsedOptions.All);
         }
 
-        public override IXLCells Cells(Boolean usedCellsOnly)
+        public override XLCells Cells(Boolean usedCellsOnly)
         {
             if (usedCellsOnly)
                 return Cells(true, XLCellsUsedOptions.AllContents);
@@ -102,7 +93,7 @@ namespace ClosedXML.Excel
                 return Cells(FirstCellUsed().Address.RowNumber, LastCellUsed().Address.RowNumber);
         }
 
-        public IXLCells Cells(Int32 firstRow, Int32 lastRow)
+        public XLCells Cells(Int32 firstRow, Int32 lastRow)
         {
             return Cells(firstRow + ":" + lastRow);
         }
@@ -169,191 +160,142 @@ namespace ClosedXML.Excel
             return AdjustToContents(startRow, XLHelper.MaxRowNumber, minWidth, maxWidth);
         }
 
-        public IXLColumn AdjustToContents(Int32 startRow, Int32 endRow, Double minWidth, Double maxWidth)
+        public IXLColumn AdjustToContents(Int32 startRow, Int32 endRow, Double minWidthNoC, Double maxWidthNoC)
         {
-            var fontCache = new Dictionary<IXLFontBase, Font>();
+            var engine = Worksheet.Workbook.GraphicEngine;
+            var dpi = new Dpi(Worksheet.Workbook.DpiX, Worksheet.Workbook.DpiY);
+            var columnWidthPx = CalculateMinColumnWidth(startRow, endRow, engine, dpi);
 
-            Double colMaxWidth = minWidth;
+            // Maximum digit width, rounded to pixels, so Calibri at 11 pts returns 7 pixels MDW (the correct value)
+            var mdw = (int)Math.Round(engine.GetMaxDigitWidth(Worksheet.Workbook.Style.Font, dpi.X));
 
-            List<Int32> autoFilterRows = new List<Int32>();
-            if (this.Worksheet.AutoFilter != null && this.Worksheet.AutoFilter.Range != null)
-                autoFilterRows.Add(this.Worksheet.AutoFilter.Range.FirstRow().RowNumber());
+            var minWidthInPx = Math.Ceiling(XLHelper.NoCToPixels(minWidthNoC, mdw));
+            if (columnWidthPx < minWidthInPx)
+                columnWidthPx = (int)minWidthInPx;
 
-            autoFilterRows.AddRange(Worksheet.Tables.Where(t =>
-                    t.AutoFilter != null
-                    && t.AutoFilter.Range != null
-                    && !autoFilterRows.Contains(t.AutoFilter.Range.FirstRow().RowNumber()))
-                .Select(t => t.AutoFilter.Range.FirstRow().RowNumber()));
+            var maxWidthInPx = Math.Ceiling(XLHelper.NoCToPixels(maxWidthNoC, mdw));
+            if (columnWidthPx > maxWidthInPx)
+                columnWidthPx = (int)maxWidthInPx;
 
-            XLStyle cellStyle = null;
-            foreach (var c in Column(startRow, endRow).CellsUsed().Cast<XLCell>())
-            {
-                if (c.IsMerged()) continue;
-                if (cellStyle == null || cellStyle.Value != c.StyleValue)
-                    cellStyle = c.Style as XLStyle;
+            var colMaxWidth = XLHelper.PixelToNoC(columnWidthPx, mdw);
 
-                Double thisWidthMax = 0;
-                Int32 textRotation = cellStyle.Alignment.TextRotation;
-                if (c.HasRichText || textRotation != 0 || c.InnerText.Contains(Environment.NewLine))
-                {
-                    var kpList = new List<KeyValuePair<IXLFontBase, string>>();
-
-                    #region if (c.HasRichText)
-
-                    if (c.HasRichText)
-                    {
-                        foreach (IXLRichString rt in c.RichText)
-                        {
-                            String formattedString = rt.Text;
-                            var arr = formattedString.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
-                            Int32 arrCount = arr.Count();
-                            for (Int32 i = 0; i < arrCount; i++)
-                            {
-                                String s = arr[i];
-                                if (i < arrCount - 1)
-                                    s += Environment.NewLine;
-                                kpList.Add(new KeyValuePair<IXLFontBase, String>(rt, s));
-                            }
-                        }
-                    }
-                    else
-                    {
-                        String formattedString = c.GetFormattedString();
-                        var arr = formattedString.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
-                        Int32 arrCount = arr.Count();
-                        for (Int32 i = 0; i < arrCount; i++)
-                        {
-                            String s = arr[i];
-                            if (i < arrCount - 1)
-                                s += Environment.NewLine;
-                            kpList.Add(new KeyValuePair<IXLFontBase, String>(cellStyle.Font, s));
-                        }
-                    }
-
-                    #endregion if (c.HasRichText)
-
-                    #region foreach (var kp in kpList)
-
-                    Double runningWidth = 0;
-                    Boolean rotated = false;
-                    Double maxLineWidth = 0;
-                    Int32 lineCount = 1;
-                    foreach (KeyValuePair<IXLFontBase, string> kp in kpList)
-                    {
-                        var f = kp.Key;
-                        String formattedString = kp.Value;
-
-                        Int32 newLinePosition = formattedString.IndexOf(Environment.NewLine);
-                        if (textRotation == 0)
-                        {
-                            #region if (newLinePosition >= 0)
-
-                            if (newLinePosition >= 0)
-                            {
-                                if (newLinePosition > 0)
-                                    runningWidth += f.GetWidth(formattedString.Substring(0, newLinePosition), fontCache);
-
-                                if (runningWidth > thisWidthMax)
-                                    thisWidthMax = runningWidth;
-
-                                runningWidth = newLinePosition < formattedString.Length - 2
-                                                   ? f.GetWidth(formattedString.Substring(newLinePosition + 2), fontCache)
-                                                   : 0;
-                            }
-                            else
-                                runningWidth += f.GetWidth(formattedString, fontCache);
-
-                            #endregion if (newLinePosition >= 0)
-                        }
-                        else
-                        {
-                            #region if (textRotation == 255)
-
-                            if (textRotation == 255)
-                            {
-                                if (runningWidth <= 0)
-                                    runningWidth = f.GetWidth("X", fontCache);
-
-                                if (newLinePosition >= 0)
-                                    runningWidth += f.GetWidth("X", fontCache);
-                            }
-                            else
-                            {
-                                rotated = true;
-                                Double vWidth = f.GetWidth("X", fontCache);
-                                if (vWidth > maxLineWidth)
-                                    maxLineWidth = vWidth;
-
-                                if (newLinePosition >= 0)
-                                {
-                                    lineCount++;
-
-                                    if (newLinePosition > 0)
-                                        runningWidth += f.GetWidth(formattedString.Substring(0, newLinePosition), fontCache);
-
-                                    if (runningWidth > thisWidthMax)
-                                        thisWidthMax = runningWidth;
-
-                                    runningWidth = newLinePosition < formattedString.Length - 2
-                                                       ? f.GetWidth(formattedString.Substring(newLinePosition + 2), fontCache)
-                                                       : 0;
-                                }
-                                else
-                                    runningWidth += f.GetWidth(formattedString, fontCache);
-                            }
-
-                            #endregion if (textRotation == 255)
-                        }
-                    }
-
-                    #endregion foreach (var kp in kpList)
-
-                    if (runningWidth > thisWidthMax)
-                        thisWidthMax = runningWidth;
-
-                    #region if (rotated)
-
-                    if (rotated)
-                    {
-                        Int32 rotation;
-                        if (textRotation == 90 || textRotation == 180 || textRotation == 255)
-                            rotation = 90;
-                        else
-                            rotation = textRotation % 90;
-
-                        Double r = DegreeToRadian(rotation);
-
-                        thisWidthMax = (thisWidthMax * Math.Cos(r)) + (maxLineWidth * lineCount);
-                    }
-
-                    #endregion if (rotated)
-                }
-                else
-                    thisWidthMax = cellStyle.Font.GetWidth(c.GetFormattedString(), fontCache);
-
-                if (autoFilterRows.Contains(c.Address.RowNumber))
-                    thisWidthMax += 2.7148; // Allow room for arrow icon in autofilter
-
-                if (thisWidthMax >= maxWidth)
-                {
-                    colMaxWidth = maxWidth;
-                    break;
-                }
-
-                if (thisWidthMax > colMaxWidth)
-                    colMaxWidth = thisWidthMax + 1;
-            }
-
+            // If there is nothing in the column, use worksheet column width.
             if (colMaxWidth <= 0)
                 colMaxWidth = Worksheet.ColumnWidth;
 
             Width = colMaxWidth;
 
-            foreach (IDisposable font in fontCache.Values)
-            {
-                font.Dispose();
-            }
             return this;
+        }
+
+        /// <summary>
+        /// Calculate column width in pixels according to the content of cells.
+        /// </summary>
+        /// <param name="startRow">First row number whose content is used for determination.</param>
+        /// <param name="endRow">Last row number whose content is used for determination.</param>
+        /// <param name="engine">Engine to determine size of glyphs.</param>
+        /// <param name="dpi">DPI of the worksheet.</param>
+        private int CalculateMinColumnWidth(int startRow, int endRow, IXLGraphicEngine engine, Dpi dpi)
+        {
+            var autoFilterRows = new List<Int32>();
+            if (this.Worksheet.AutoFilter != null && Worksheet.AutoFilter.Range != null)
+                autoFilterRows.Add(this.Worksheet.AutoFilter.Range.FirstRow().RowNumber());
+
+            autoFilterRows.AddRange(Worksheet.Tables.Where<XLTable>(t =>
+                    t.AutoFilter != null
+                    && t.AutoFilter.Range != null
+                    && !autoFilterRows.Contains(t.AutoFilter.Range.FirstRow().RowNumber()))
+                .Select(t => t.AutoFilter.Range.FirstRow().RowNumber()));
+
+            // Reusable buffer
+            var glyphs = new List<GlyphBox>();
+            XLStyle? cellStyle = null;
+            var columnWidthPx = 0;
+            foreach (var cell in Column(startRow, endRow).CellsUsed())
+            {
+                // Clear maintains capacity -> reduce need for GC
+                glyphs.Clear();
+
+                if (cell.IsMerged())
+                    continue;
+
+                // Reuse styles if possible to reduce memory consumption
+                if (cellStyle is null || cellStyle.Value != cell.StyleValue)
+                    cellStyle = (XLStyle)cell.Style;
+
+                cell.GetGlyphBoxes(engine, dpi, glyphs);
+                var textWidthPx = (int)Math.Ceiling(GetContentWidth(cellStyle.Alignment.TextRotation, glyphs));
+
+                var scaledMdw = engine.GetMaxDigitWidth(cellStyle.Font, dpi.X);
+                scaledMdw = Math.Round(scaledMdw, MidpointRounding.AwayFromZero);
+
+                // Not sure about rounding, but larger is probably better, so use ceiling.
+                // Due to mismatched rendering, add 3% instead of 1.75%, to have additional space.
+                var oneSidePadding = (int)Math.Ceiling(textWidthPx * 0.03 + scaledMdw / 4);
+
+                // Cell width if calculated as content width + padding on each side of a content.
+                // The one side padding is roughly 1.75% of content + MDW/4.
+                // The additional pixel is there for lines between cells.
+                var cellWidthPx = textWidthPx + 2 * oneSidePadding + 1;
+
+                if (autoFilterRows.Contains(cell.Address.RowNumber))
+                {
+                    // Autofilter arrow is 16px at 96dpi, scaling through DPI, e.g. 20px at 120dpi
+                    cellWidthPx += (int)Math.Round(16d * dpi.X / 96d, MidpointRounding.AwayFromZero);
+                }
+
+                columnWidthPx = Math.Max(cellWidthPx, columnWidthPx);
+            }
+
+            return columnWidthPx;
+        }
+
+        private static double GetContentWidth(int textRotationDeg, List<GlyphBox> glyphs)
+        {
+            if (textRotationDeg == 0)
+            {
+                var maxTextWidth = 0d;
+                var lineTextWidth = 0d;
+                foreach (var glyph in glyphs)
+                {
+                    if (!glyph.IsLineBreak)
+                    {
+                        lineTextWidth += glyph.AdvanceWidth;
+                        maxTextWidth = Math.Max(lineTextWidth, maxTextWidth);
+                    }
+                    else
+                        lineTextWidth = 0;
+                }
+
+                return maxTextWidth;
+            }
+            if (textRotationDeg == 255)
+            {
+                // Glyphs are arranged vertically, top to bottom.
+                var maxGlyphWidth = 0d;
+                foreach (var grapheme in glyphs)
+                    maxGlyphWidth = Math.Max(grapheme.AdvanceWidth, maxGlyphWidth);
+
+                return maxGlyphWidth;
+            }
+            else
+            {
+                // Glyphs are rotated
+                if (textRotationDeg > 90)
+                    textRotationDeg = 90 - textRotationDeg;
+
+                var totalWidth = 0d;
+                var maxHeight = 0d;
+                foreach (var glyph in glyphs)
+                {
+                    totalWidth += glyph.AdvanceWidth;
+                    maxHeight = Math.Max(maxHeight, glyph.LineHeight);
+                }
+
+                var projectedHeight = maxHeight * Math.Cos(XLHelper.DegToRad(90 - textRotationDeg));
+                var projectedWidth = totalWidth * Math.Cos(XLHelper.DegToRad(textRotationDeg));
+                return projectedWidth + projectedHeight;
+            }
         }
 
         public IXLColumn Hide()
@@ -451,6 +393,8 @@ namespace ClosedXML.Excel
             return this;
         }
 
+        IXLRangeColumn IXLColumn.Column(Int32 start, Int32 end) => Column(start, end);
+
         IXLRangeColumn IXLColumn.CopyTo(IXLCell target)
         {
             var copy = AsRange().CopyTo(target);
@@ -476,7 +420,7 @@ namespace ClosedXML.Excel
             return newColumn;
         }
 
-        public IXLRangeColumn Column(Int32 start, Int32 end)
+        public XLRangeColumn Column(Int32 start, Int32 end)
         {
             return Range(start, 1, end, 1).Column(1);
         }
@@ -502,20 +446,6 @@ namespace ClosedXML.Excel
         {
             Worksheet.PageSetup.AddVerticalPageBreak(ColumnNumber());
             return this;
-        }
-
-        public IXLColumn SetDataType(XLDataType dataType)
-        {
-            DataType = dataType;
-            return this;
-        }
-
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        public IXLRangeColumn ColumnUsed(Boolean includeFormats)
-        {
-            return ColumnUsed(includeFormats
-                ? XLCellsUsedOptions.All
-                : XLCellsUsedOptions.AllContents);
         }
 
         public IXLRangeColumn ColumnUsed(XLCellsUsedOptions options = XLCellsUsedOptions.AllContents)
@@ -579,11 +509,6 @@ namespace ClosedXML.Excel
         public IXLRangeColumn Range(int firstRow, int lastRow)
         {
             return Range(firstRow, 1, lastRow, 1).Column(1);
-        }
-
-        private static double DegreeToRadian(double angle)
-        {
-            return Math.PI * angle / 180.0;
         }
 
         private XLColumn ColumnShift(Int32 columnsToShift)

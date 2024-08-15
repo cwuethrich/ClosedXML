@@ -22,12 +22,12 @@ namespace ClosedXML.Excel.CalcEngine
                 };
             });
 
-        internal static bool ValueSatisfiesCriteria(object value, object criteria, CalcEngine ce)
+        internal static bool ValueSatisfiesCriteria(object? value, object criteria, XLCalcEngine ce)
         {
             // safety...
             if (value == null)
             {
-                return false;
+                return criteria is string { Length: 0 };
             }
 
             // Excel treats TRUE and 1 as unequal, but LibreOffice treats them as equal. We follow Excel's convention
@@ -44,7 +44,7 @@ namespace ClosedXML.Excel.CalcEngine
             else if (criteria is TimeSpan ts) cdbl = ts.TotalDays;
             else if (criteria is String cs)
             {
-                if (value is string && (value as string).Trim().Length == 0)
+                if (value is string s && s.Trim().Length == 0)
                     return cs.Length == 0;
 
                 if (cs.Length == 0)
@@ -72,7 +72,7 @@ namespace ClosedXML.Excel.CalcEngine
                     }
 
                     // evaluate
-                    return (bool)ce.Evaluate(expression);
+                    return ce.EvaluateFormula(expression).GetLogical();
                 }
 
                 // if criteria is a regular expression, use regex
@@ -116,9 +116,9 @@ namespace ClosedXML.Excel.CalcEngine
             return Math.Abs(vdbl - cdbl) < Double.Epsilon;
         }
 
-        internal static bool ValueIsBlank(object value)
+        internal static bool ValueIsBlank(object? value)
         {
-            if (value == null)
+            if (value is null)
                 return true;
 
             if (value is string s)
@@ -128,18 +128,53 @@ namespace ClosedXML.Excel.CalcEngine
         }
 
         /// <summary>
-        /// Get total count of cells in the specified range without initalizing them all
+        /// Get total count of cells in the specified range without initializing them all
         /// (which might cause serious performance issues on column-wide calculations).
         /// </summary>
         /// <param name="rangeExpression">Expression referring to the cell range.</param>
         /// <returns>Total number of cells in the range.</returns>
-        internal static long GetTotalCellsCount(XObjectExpression rangeExpression)
+        internal static long GetTotalCellsCount(XObjectExpression? rangeExpression)
+        {
+            var (columnCount, rowCount) = GetRangeDimensions(rangeExpression);
+            return (long)columnCount * (long)rowCount;
+        }
+
+        /// <summary>
+        /// Get dimensions of the specified range without initializing them all
+        /// (which might cause serious performance issues on column-wide calculations).
+        /// </summary>
+        /// <param name="rangeExpression">Expression referring to the cell range.</param>
+        /// <returns>A tuple of column and row counts.</returns>
+        internal static (int ColumnCount, int RowCount) GetRangeDimensions(XObjectExpression? rangeExpression)
         {
             var range = (rangeExpression?.Value as CellRangeReference)?.Range;
             if (range == null)
-                return 0;
-            return (long)(range.LastColumn().ColumnNumber() - range.FirstColumn().ColumnNumber() + 1) *
-                   (long)(range.LastRow().RowNumber() - range.FirstRow().RowNumber() + 1);
+            {
+                return (0, 0);
+            }
+
+            return (range.ColumnCount(), range.RowCount());
+        }
+
+        internal static bool TryExtractRange(Expression expression, out IXLRange? range, out XLError calculationErrorType)
+        {
+            range = null;
+            calculationErrorType = default;
+
+            if (expression is not XObjectExpression objectExpression)
+            {
+                calculationErrorType = XLError.NoValueAvailable;
+                return false;
+            }
+
+            if (objectExpression.Value is not CellRangeReference cellRangeReference)
+            {
+                calculationErrorType = XLError.NoValueAvailable;
+                return false;
+            }
+
+            range = cellRangeReference.Range;
+            return true;
         }
     }
 }

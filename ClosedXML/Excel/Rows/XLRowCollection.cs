@@ -1,3 +1,5 @@
+#nullable disable
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,9 +22,7 @@ namespace ClosedXML.Excel
         {
             if (key > MaxRowUsed) MaxRowUsed = key;
 
-            if (Deleted.ContainsKey(key))
-                Deleted.Remove(key);
-
+             Deleted.Remove(key);
             _dictionary.Add(key, value);
         }
 
@@ -64,9 +64,7 @@ namespace ClosedXML.Excel
         {
             if (item.Key > MaxRowUsed) MaxRowUsed = item.Key;
 
-            if (Deleted.ContainsKey(item.Key))
-                Deleted.Remove(item.Key);
-
+            Deleted.Remove(item.Key);
             _dictionary.Add(item.Key, item.Value);
         }
 

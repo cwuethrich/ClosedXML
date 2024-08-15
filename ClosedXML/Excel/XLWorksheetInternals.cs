@@ -1,3 +1,5 @@
+#nullable disable
+
 using System;
 
 namespace ClosedXML.Excel
@@ -17,35 +19,24 @@ namespace ClosedXML.Excel
             MergedRanges = mergedRanges;
         }
 
-        public XLCellsCollection CellsCollection { get; private set; }
-        public XLColumnsCollection ColumnsCollection { get; private set; }
-        public XLRowsCollection RowsCollection { get; private set; }
+        public XLCellsCollection CellsCollection { get; }
+        public XLColumnsCollection ColumnsCollection { get; }
+        public XLRowsCollection RowsCollection { get; }
         public XLRanges MergedRanges { get; internal set; }
 
         // Used by Janitor.Fody
         private void DisposeManaged()
         {
+            CellsCollection.ValueSlice.DereferenceSlice();
             CellsCollection.Clear();
             ColumnsCollection.Clear();
             RowsCollection.Clear();
             MergedRanges.RemoveAll();
         }
 
-#if _NET40_
-
         public void Dispose()
         {
-            // net40 doesn't support Janitor.Fody, so let's dispose manually
-            DisposeManaged();
+            // Leave this empty so that Janitor.Fody can do its work
         }
-
-#else
-
-        public void Dispose()
-        {
-            // Leave this empty (for non net40 targets) so that Janitor.Fody can do its work
-        }
-
-#endif
     }
 }

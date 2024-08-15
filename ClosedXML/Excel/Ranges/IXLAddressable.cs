@@ -1,4 +1,6 @@
-﻿namespace ClosedXML.Excel
+#nullable disable
+
+namespace ClosedXML.Excel
 {
     /// <summary>
     /// A very lightweight interface for entities that have an address as

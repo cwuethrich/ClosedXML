@@ -4,35 +4,39 @@ using System.Xml;
 
 namespace ClosedXML.Utils
 {
-    public static class XmlEncoder
+    internal static class XmlEncoder
     {
         private static readonly Regex xHHHHRegex = new Regex("_(x[\\dA-Fa-f]{4})_", RegexOptions.Compiled);
         private static readonly Regex Uppercase_X_HHHHRegex = new Regex("_(X[\\dA-Fa-f]{4})_", RegexOptions.Compiled);
 
         public static string EncodeString(string encodeStr)
         {
-            if (encodeStr == null) return null;
-
             encodeStr = xHHHHRegex.Replace(encodeStr, "_x005F_$1_");
 
             var sb = new StringBuilder(encodeStr.Length);
-
-            foreach (var ch in encodeStr)
+            var len = encodeStr.Length;
+            for (var i = 0; i < len; ++i)
             {
-                if (XmlConvert.IsXmlChar(ch))
+                var currentChar = encodeStr[i];
+                if (XmlConvert.IsXmlChar(currentChar))
                 {
-                    sb.Append(ch);
+                    sb.Append(currentChar);
+                }
+                else if (i + 1 < len && XmlConvert.IsXmlSurrogatePair(encodeStr[i + 1], currentChar))
+                {
+                    sb.Append(currentChar);
+                    sb.Append(encodeStr[++i]);
                 }
                 else
                 {
-                    sb.Append(XmlConvert.EncodeName(ch.ToString()));
+                    sb.Append(XmlConvert.EncodeName(currentChar.ToString()));
                 }
             }
 
             return sb.ToString();
         }
 
-        public static string DecodeString(string decodeStr)
+        public static string DecodeString(string? decodeStr)
         {
             if (string.IsNullOrEmpty(decodeStr)) return string.Empty;
 

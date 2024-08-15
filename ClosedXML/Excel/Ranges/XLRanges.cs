@@ -34,6 +34,8 @@ namespace ClosedXML.Excel
 
         #region IXLRanges Members
 
+        IXLCells IXLRanges.Cells() => Cells();
+
         public IXLRanges Clear(XLClearOptions clearOptions = XLClearOptions.All)
         {
             Ranges.ForEach(c => c.Clear(clearOptions));
@@ -58,7 +60,7 @@ namespace ClosedXML.Excel
 
         public void Add(IXLRangeBase range)
         {
-            Add(range.AsRange() as XLRange);
+            Add((XLRange)range.AsRange());
         }
 
         public void Add(IXLCell cell)
@@ -84,7 +86,7 @@ namespace ClosedXML.Excel
         /// Null means the entire collection should be cleared.</param>
         /// <param name="releaseEventHandlers">Specify whether or not should removed ranges be unsubscribed from
         /// row/column shifting events. Until ranges are unsubscribed they cannot be collected by GC.</param>
-        public void RemoveAll(Predicate<IXLRange> match = null, bool releaseEventHandlers = true)
+        public void RemoveAll(Predicate<IXLRange>? match = null, bool releaseEventHandlers = true)
         {
             foreach (var index in _indexes.Values)
             {
@@ -132,7 +134,7 @@ namespace ClosedXML.Excel
 
         internal IEnumerable<IXLRange> GetIntersectedRanges(in XLRangeAddress rangeAddress)
         {
-            return GetRangeIndex(rangeAddress.Worksheet)
+            return GetRangeIndex(rangeAddress.Worksheet!)
                 .GetIntersectedRanges(rangeAddress);
         }
 
@@ -159,7 +161,7 @@ namespace ClosedXML.Excel
 
         public IEnumerable<IXLDataValidation> DataValidation
         {
-            get { return Ranges.Select(range => range.DataValidation).Where(dv => dv != null); }
+            get { return Ranges.Select(range => range.GetDataValidation()).Where(dv => dv != null); }
         }
 
         public IXLRanges AddToNamed(String rangeName)
@@ -172,24 +174,24 @@ namespace ClosedXML.Excel
             return AddToNamed(rangeName, XLScope.Workbook, null);
         }
 
-        public IXLRanges AddToNamed(String rangeName, XLScope scope, String comment)
+        public IXLRanges AddToNamed(String rangeName, XLScope scope, String? comment)
         {
             Ranges.ForEach(r => r.AddToNamed(rangeName, scope, comment));
             return this;
         }
 
-        public Object Value
+        public XLCellValue Value
         {
             set { Ranges.ForEach(r => r.Value = value); }
         }
 
-        public IXLRanges SetValue<T>(T value)
+        public IXLRanges SetValue(XLCellValue value)
         {
             Ranges.ForEach(r => r.SetValue(value));
             return this;
         }
 
-        public IXLCells Cells()
+        public XLCells Cells()
         {
             var cells = new XLCells(false, XLCellsUsedOptions.AllContents);
             foreach (XLRange container in Ranges)
@@ -205,14 +207,6 @@ namespace ClosedXML.Excel
             return cells;
         }
 
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        public IXLCells CellsUsed(Boolean includeFormats)
-        {
-            return CellsUsed(includeFormats
-                ? XLCellsUsedOptions.All
-                : XLCellsUsedOptions.AllContents);
-        }
-
         public IXLCells CellsUsed(XLCellsUsedOptions options)
         {
             var cells = new XLCells(true, options);
@@ -221,33 +215,9 @@ namespace ClosedXML.Excel
             return cells;
         }
 
-        public IXLRanges SetDataType(XLDataType dataType)
-        {
-            Ranges.ForEach(c => c.DataType = dataType);
-            return this;
-        }
-
         #endregion IXLRanges Members
 
         #region IXLStylized Members
-
-        public override IEnumerable<IXLStyle> Styles
-        {
-            get
-            {
-                yield return Style;
-                foreach (XLRange rng in Ranges)
-                {
-                    yield return rng.Style;
-                    foreach (XLCell r in rng.Worksheet.Internals.CellsCollection.GetCells(
-                        rng.RangeAddress.FirstAddress.RowNumber,
-                        rng.RangeAddress.FirstAddress.ColumnNumber,
-                        rng.RangeAddress.LastAddress.RowNumber,
-                        rng.RangeAddress.LastAddress.ColumnNumber))
-                        yield return r.Style;
-                }
-            }
-        }
 
         protected override IEnumerable<XLStylizedBase> Children
         {
@@ -277,7 +247,7 @@ namespace ClosedXML.Excel
             return Equals(obj as XLRanges);
         }
 
-        public bool Equals(XLRanges other)
+        public bool Equals(XLRanges? other)
         {
             if (other == null)
                 return false;
@@ -291,7 +261,7 @@ namespace ClosedXML.Excel
             return Ranges.Aggregate(0, (current, r) => current ^ r.GetHashCode());
         }
 
-        public IXLDataValidation SetDataValidation()
+        public IXLDataValidation CreateDataValidation()
         {
             var firstRange = Ranges.First();
             var dataValidation = new XLDataValidation(firstRange);
@@ -302,6 +272,12 @@ namespace ClosedXML.Excel
 
             firstRange.Worksheet.DataValidations.Add(dataValidation);
             return dataValidation;
+        }
+
+        [Obsolete("Use CreateDataValidation() instead.")]
+        public IXLDataValidation SetDataValidation()
+        {
+            return CreateDataValidation();
         }
 
         public void Select()

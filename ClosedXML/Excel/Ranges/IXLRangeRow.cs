@@ -1,3 +1,5 @@
+#nullable disable
+
 using System;
 
 namespace ClosedXML.Excel
@@ -105,8 +107,6 @@ namespace ClosedXML.Excel
 
         IXLRangeRows Rows(String rows);
 
-        IXLRangeRow SetDataType(XLDataType dataType);
-
         IXLRangeRow RowAbove();
 
         IXLRangeRow RowAbove(Int32 step);
@@ -122,9 +122,6 @@ namespace ClosedXML.Excel
         /// </summary>
         /// <param name="clearOptions">Specify what you want to clear.</param>
         new IXLRangeRow Clear(XLClearOptions clearOptions = XLClearOptions.All);
-
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLRangeRow RowUsed(Boolean includeFormats);
 
         IXLRangeRow RowUsed(XLCellsUsedOptions options = XLCellsUsedOptions.AllContents);
     }

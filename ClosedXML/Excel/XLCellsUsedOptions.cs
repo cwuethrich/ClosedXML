@@ -1,10 +1,16 @@
-﻿using System;
+#nullable disable
+
+using System;
 
 namespace ClosedXML.Excel
 {
     [Flags]
     public enum XLCellsUsedOptions
     {
+
+        None                    = 0,
+        NoConstraints           = None,
+
         Contents                = 1 << 0,
         DataType                = 1 << 1,
         NormalFormats           = 1 << 2,
@@ -17,13 +23,5 @@ namespace ClosedXML.Excel
         AllFormats = NormalFormats | ConditionalFormats,
         AllContents = Contents | DataType | Comments,
         All = Contents | DataType | NormalFormats | ConditionalFormats | Comments | DataValidation | MergedRanges | Sparklines
-    }
-
-    internal static class XLCellsUsedOptionsExtensions
-    {
-        public static XLClearOptions ToClearOptions(this XLCellsUsedOptions options)
-        {
-            return (XLClearOptions)options;
-        }
     }
 }

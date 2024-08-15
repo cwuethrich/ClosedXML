@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+#nullable disable
+
+using System.Collections.Generic;
 
 namespace ClosedXML.Excel.CalcEngine
 {
@@ -6,7 +8,12 @@ namespace ClosedXML.Excel.CalcEngine
     {
         private readonly XLAddressComparer _addressComparer;
 
-        public XLRangeAddressComparer(bool ignoreFixed)
+        /// <summary>
+        /// Comparer of ranges that ignores whether row/column is fixes or not.
+        /// </summary>
+        internal static readonly XLRangeAddressComparer IgnoreFixed = new(true);
+
+        private XLRangeAddressComparer(bool ignoreFixed)
         {
             _addressComparer = new XLAddressComparer(ignoreFixed);
         }

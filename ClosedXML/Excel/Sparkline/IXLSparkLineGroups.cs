@@ -1,4 +1,6 @@
-﻿// Keep this file CodeMaid organised and cleaned
+#nullable disable
+
+// Keep this file CodeMaid organised and cleaned
 using System.Collections.Generic;
 
 namespace ClosedXML.Excel

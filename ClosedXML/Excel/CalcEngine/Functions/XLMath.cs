@@ -1,6 +1,6 @@
+#nullable disable
+
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
 namespace ClosedXML.Excel.CalcEngine.Functions
@@ -83,16 +83,58 @@ namespace ClosedXML.Excel.CalcEngine.Functions
             return (Math.Cosh(x) / Math.Sinh(x));
         }
 
-        public static double Combin(Int32 n, Int32 k)
+        internal static OneOf<double, XLError> CombinChecked(double number, double numberChosen)
+        {
+            if (number < 0 || numberChosen < 0)
+                return XLError.NumberInvalid;
+
+            var n = Math.Floor(number);
+            var k = Math.Floor(numberChosen);
+
+            // Parameter doesn't fit into int. That's how many multiplications Excel allows.
+            if (n >= int.MaxValue || k >= int.MaxValue)
+                return XLError.NumberInvalid;
+
+            if (n < k)
+                return XLError.NumberInvalid;
+
+            var combinations = Combin(n, k);
+            if (double.IsInfinity(combinations) || double.IsNaN(combinations))
+                return XLError.NumberInvalid;
+
+            return combinations;
+        }
+
+        internal static double Combin(double n, double k)
         {
             if (k == 0) return 1;
-            return n * Combin(n - 1, k - 1) / k;
+
+            // Don't use recursion, malicious input could exhaust stack.
+            // Don't calculate directly from factorials, could overflow.
+            double result = 1;
+            for (var i = 1; i <= k; i++, n--)
+            {
+                result *= n;
+                result /= i;
+            }
+
+            return result;
+        }
+
+        internal static double Factorial(int n)
+        {
+            var factorial = 1d;
+            while (n > 1)
+                factorial *= n--;
+
+            return factorial;
         }
 
         public static Boolean IsEven(Int32 value)
         {
             return Math.Abs(value % 2) == 0;
         }
+
         public static Boolean IsOdd(Int32 value)
         {
             return Math.Abs(value % 2) != 0;
@@ -103,7 +145,7 @@ namespace ClosedXML.Excel.CalcEngine.Functions
             if ((number < 0) || (number > 3999)) throw new ArgumentOutOfRangeException("insert value betwheen 1 and 3999");
             if (number < 1) return string.Empty;
             if (number >= 1000) return "M" + ToRoman(number - 1000);
-            if (number >= 900) return "CM" + ToRoman(number - 900); 
+            if (number >= 900) return "CM" + ToRoman(number - 900);
             if (number >= 500) return "D" + ToRoman(number - 500);
             if (number >= 400) return "CD" + ToRoman(number - 400);
             if (number >= 100) return "C" + ToRoman(number - 100);
@@ -148,7 +190,7 @@ namespace ClosedXML.Excel.CalcEngine.Functions
                 return 4 + RomanToArabic(text.Substring(2));
             if (text.StartsWith("I", StringComparison.InvariantCultureIgnoreCase))
                 return 1 + RomanToArabic(text.Substring(1));
-            
+
             throw new ArgumentOutOfRangeException("text is not a valid roman number");
         }
 

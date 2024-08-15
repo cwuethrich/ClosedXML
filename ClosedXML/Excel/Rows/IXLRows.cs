@@ -1,3 +1,5 @@
+#nullable disable
+
 using System;
 using System.Collections.Generic;
 
@@ -106,10 +108,7 @@ namespace ClosedXML.Excel
         /// <summary>
         /// Returns the collection of cells that have a value.
         /// </summary>
-        /// <param name="includeFormats">if set to <c>true</c> will return all cells with a value or a style different than the default.</param>
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLCells CellsUsed(Boolean includeFormats);
-
+        /// <param name="options">The options to determine whether a cell is used.</param>
         IXLCells CellsUsed(XLCellsUsedOptions options);
 
         IXLStyle Style { get; set; }
@@ -118,8 +117,6 @@ namespace ClosedXML.Excel
         /// Adds a horizontal page break after these rows.
         /// </summary>
         IXLRows AddHorizontalPageBreaks();
-
-        IXLRows SetDataType(XLDataType dataType);
 
         /// <summary>
         /// Clears the contents of these rows.

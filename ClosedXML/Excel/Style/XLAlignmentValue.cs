@@ -1,4 +1,6 @@
-﻿using ClosedXML.Excel.Caching;
+#nullable disable
+
+using ClosedXML.Excel.Caching;
 
 namespace ClosedXML.Excel
 {
@@ -46,8 +48,6 @@ namespace ClosedXML.Excel
 
         public bool WrapText { get { return Key.WrapText; } }
 
-        public bool TopToBottom { get { return Key.TopToBottom; } }
-
         private XLAlignmentValue(XLAlignmentKey key)
         {
             Key = key;
@@ -55,14 +55,18 @@ namespace ClosedXML.Excel
 
         public override bool Equals(object obj)
         {
-            var cached = obj as XLAlignmentValue;
-            return cached != null &&
-                   Key.Equals(cached.Key);
+            return obj is XLAlignmentValue cached && Key.Equals(cached.Key);
         }
 
         public override int GetHashCode()
         {
             return 990326508 + Key.GetHashCode();
+        }
+
+        internal XLAlignmentValue WithWrapText(bool wrapText)
+        {
+            var keyCopy = Key with { WrapText = wrapText };
+            return FromKey(ref keyCopy);
         }
     }
 }

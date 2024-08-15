@@ -1,3 +1,5 @@
+#nullable disable
+
 using System;
 
 namespace ClosedXML.Excel
@@ -8,7 +10,7 @@ namespace ClosedXML.Excel
         /// Gets or sets the height of this row.
         /// </summary>
         /// <value>
-        /// The width of this row.
+        /// The width of this row in points.
         /// </value>
         Double Height { get; set; }
 
@@ -20,6 +22,7 @@ namespace ClosedXML.Excel
         /// <summary>
         /// Deletes this row and shifts the rows below this one accordingly.
         /// </summary>
+        /// <remarks>Don't use in a loop due to poor performance. Use <see cref="IXLRange.Delete(XLShiftDeletedCells)"/> instead.</remarks>
         void Delete();
 
         /// <summary>
@@ -60,7 +63,14 @@ namespace ClosedXML.Excel
 
         IXLRow AdjustToContents(Int32 startColumn, Double minHeight, Double maxHeight);
 
-        IXLRow AdjustToContents(Int32 startColumn, Int32 endColumn, Double minHeight, Double maxHeight);
+        /// <summary>
+        /// Adjust height of the column according to the content of the cells.
+        /// </summary>
+        /// <param name="startColumn">Number of a first column whose content is considered.</param>
+        /// <param name="endColumn">Number of a last column whose content is considered.</param>
+        /// <param name="minHeightPt">Minimum height of adjusted column, in points.</param>
+        /// <param name="maxHeightPt">Maximum height of adjusted column, in points.</param>
+        IXLRow AdjustToContents(Int32 startColumn, Int32 endColumn, Double minHeightPt, Double maxHeightPt);
 
         /// <summary>Hides this row.</summary>
         IXLRow Hide();
@@ -183,8 +193,6 @@ namespace ClosedXML.Excel
         /// </summary>
         IXLRow AddHorizontalPageBreak();
 
-        IXLRow SetDataType(XLDataType dataType);
-
         IXLRow RowAbove();
 
         IXLRow RowAbove(Int32 step);
@@ -198,9 +206,6 @@ namespace ClosedXML.Excel
         /// </summary>
         /// <param name="clearOptions">Specify what you want to clear.</param>
         new IXLRow Clear(XLClearOptions clearOptions = XLClearOptions.All);
-
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLRangeRow RowUsed(Boolean includeFormats);
 
         IXLRangeRow RowUsed(XLCellsUsedOptions options = XLCellsUsedOptions.AllContents);
     }

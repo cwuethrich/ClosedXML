@@ -1,3 +1,5 @@
+#nullable disable
+
 using System;
 using System.Globalization;
 
@@ -14,33 +16,26 @@ namespace ClosedXML.Excel
         IXLWorksheet Worksheet { get; }
 
         /// <summary>
-        ///   Sets a value to every cell in this range.
-        ///   <para>If the object is an IEnumerable ClosedXML will copy the collection's data into a table starting from each cell.</para>
-        ///   <para>If the object is a range ClosedXML will copy the range starting from each cell.</para>
-        ///   <para>Setting the value to an object (not IEnumerable/range) will call the object's ToString() method.</para>
-        ///   <para>ClosedXML will try to translate it to the corresponding type, if it can't then the value will be left as a string.</para>
+        /// Sets a value to every cell in this range.
+        /// <para>
+        /// Setter will clear a formula, if the cell contains a formula.
+        /// If the value is a text that starts with a single quote, setter will prefix the value with a single quote through
+        /// <see cref="IXLStyle.IncludeQuotePrefix"/> in Excel too and the value of cell is set to to non-quoted text.
+        /// </para>
         /// </summary>
-        /// <value>
-        ///   The object containing the value(s) to set.
-        /// </value>
-        Object Value { set; }
-
-        /// <summary>
-        ///   Sets the type of the cells' data.
-        ///   <para>Changing the data type will cause ClosedXML to covert the current value to the new data type.</para>
-        ///   <para>An exception will be thrown if the current value cannot be converted to the new data type.</para>
-        /// </summary>
-        /// <value>
-        ///   The type of the cell's data.
-        /// </value>
-        /// <exception cref = "ArgumentException"></exception>
-        XLDataType DataType { set; }
+        XLCellValue Value { set; }
 
         /// <summary>
         ///   Sets the cells' formula with A1 references.
         /// </summary>
         /// <value>The formula with A1 references.</value>
         String FormulaA1 { set; }
+
+        /// <summary>
+        /// Create an array formula for all cells in the range.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">When the range overlaps with a table, pivot table, merged cells or partially overlaps another array formula.</exception>
+        String FormulaArrayA1 { set; }
 
         /// <summary>
         ///   Sets the cells' formula with R1C1 references.
@@ -67,9 +62,6 @@ namespace ClosedXML.Excel
 
         IXLCells Cells(Boolean usedCellsOnly);
 
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLCells Cells(Boolean usedCellsOnly, Boolean includeFormats);
-
         IXLCells Cells(Boolean usedCellsOnly, XLCellsUsedOptions options);
 
         IXLCells Cells(String cells);
@@ -82,18 +74,12 @@ namespace ClosedXML.Excel
         IXLCells CellsUsed();
 
         /// <summary>
-        ///   Returns the collection of cells that have a value.
+        /// Returns the collection of cells that have a value.
         /// </summary>
-        /// <param name = "includeFormats">if set to <c>true</c> will return all cells with a value or a style different than the default.</param>
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLCells CellsUsed(Boolean includeFormats);
-
+        /// <param name="options">The options to determine whether a cell is used.</param>
         IXLCells CellsUsed(XLCellsUsedOptions options);
 
         IXLCells CellsUsed(Func<IXLCell, Boolean> predicate);
-
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLCells CellsUsed(Boolean includeFormats, Func<IXLCell, Boolean> predicate);
 
         IXLCells CellsUsed(XLCellsUsedOptions options, Func<IXLCell, Boolean> predicate);
 
@@ -103,7 +89,6 @@ namespace ClosedXML.Excel
         /// <param name="searchText">The search text.</param>
         /// <param name="compareOptions">The compare options.</param>
         /// <param name="searchFormulae">if set to <c>true</c> search formulae instead of cell values.</param>
-        /// <returns></returns>
         IXLCells Search(String searchText, CompareOptions compareOptions = CompareOptions.Ordinal, Boolean searchFormulae = false);
 
         /// <summary>
@@ -112,26 +97,24 @@ namespace ClosedXML.Excel
         IXLCell FirstCell();
 
         /// <summary>
-        ///   Returns the first cell with a value of this range. Formats are ignored.
+        ///   Returns the first non-empty cell with a value of this range. Formats are ignored.
         ///   <para>The cell's address is going to be ([First Row with a value], [First Column with a value])</para>
         /// </summary>
         IXLCell FirstCellUsed();
 
         /// <summary>
-        ///   Returns the first cell with a value of this range.
+        /// Returns the first non-empty cell with a value of this range.
         /// </summary>
-        /// <para>The cell's address is going to be ([First Row with a value], [First Column with a value])</para>
-        /// <param name = "includeFormats">if set to <c>true</c> will return all cells with a value or a style different than the default.</param>
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLCell FirstCellUsed(Boolean includeFormats);
-
+        /// <param name="options">The options to determine whether a cell is used.</param>
         IXLCell FirstCellUsed(XLCellsUsedOptions options);
 
         IXLCell FirstCellUsed(Func<IXLCell, Boolean> predicate);
 
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLCell FirstCellUsed(Boolean includeFormats, Func<IXLCell, Boolean> predicate);
-
+        /// <summary>
+        /// Returns the first non-empty cell with a value of this range.
+        /// </summary>
+        /// <param name="options">The options to determine whether a cell is used.</param>
+        /// <param name="predicate">The predicate used to choose cells</param>
         IXLCell FirstCellUsed(XLCellsUsedOptions options, Func<IXLCell, Boolean> predicate);
 
         /// <summary>
@@ -140,25 +123,18 @@ namespace ClosedXML.Excel
         IXLCell LastCell();
 
         /// <summary>
-        ///   Returns the last cell with a value of this range. Formats are ignored.
+        ///   Returns the last non-empty cell with a value of this range. Formats are ignored.
         ///   <para>The cell's address is going to be ([Last Row with a value], [Last Column with a value])</para>
         /// </summary>
         IXLCell LastCellUsed();
 
         /// <summary>
-        ///   Returns the last cell with a value of this range.
+        /// Returns the last non-empty cell with a value of this range.
         /// </summary>
-        /// <para>The cell's address is going to be ([Last Row with a value], [Last Column with a value])</para>
-        /// <param name = "includeFormats">if set to <c>true</c> will return all cells with a value or a style different than the default.</param>
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLCell LastCellUsed(Boolean includeFormats);
-
+        /// <param name="options">The options to determine whether a cell is used.</param>
         IXLCell LastCellUsed(XLCellsUsedOptions options);
 
         IXLCell LastCellUsed(Func<IXLCell, Boolean> predicate);
-
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLCell LastCellUsed(Boolean includeFormats, Func<IXLCell, Boolean> predicate);
 
         IXLCell LastCellUsed(XLCellsUsedOptions options, Func<IXLCell, Boolean> predicate);
 
@@ -210,37 +186,35 @@ namespace ClosedXML.Excel
         IXLRange Unmerge();
 
         /// <summary>
-        ///   Merges this range.
-        ///   <para>The contents and style of the merged cells will be equal to the first cell.</para>
+        /// Merges this range. Only the top-left cell will have a value, other values will be blank.
         /// </summary>
         IXLRange Merge();
 
         IXLRange Merge(Boolean checkIntersect);
 
         /// <summary>
-        ///   Creates a named range out of this range.
-        ///   <para>If the named range exists, it will add this range to that named range.</para>
-        ///   <para>The default scope for the named range is Workbook.</para>
+        /// Creates/adds this range to workbook scoped <see cref="IXLDefinedNames"/>.
+        /// <para>If the named range exists, it will add this range to that named range.</para>
         /// </summary>
-        /// <param name = "rangeName">Name of the range.</param>
-        IXLRange AddToNamed(String rangeName);
+        /// <param name = "name">Name of the defined name, without sheet.</param>
+        IXLRange AddToNamed(String name);
 
         /// <summary>
-        ///   Creates a named range out of this range.
-        ///   <para>If the named range exists, it will add this range to that named range.</para>
-        ///   <param name = "rangeName">Name of the range.</param>
-        ///   <param name = "scope">The scope for the named range.</param>
+        /// Creates/adds this range to <see cref="IXLDefinedNames"/>.
+        /// <para>If the named range exists, it will add this range to that named range.</para>
+        /// <param name = "name">Name of the defined name, without sheet.</param>
+        /// <param name = "scope">The scope for the named range.</param>
         /// </summary>
-        IXLRange AddToNamed(String rangeName, XLScope scope);
+        IXLRange AddToNamed(String name, XLScope scope);
 
         /// <summary>
-        ///   Creates a named range out of this range.
-        ///   <para>If the named range exists, it will add this range to that named range.</para>
-        ///   <param name = "rangeName">Name of the range.</param>
-        ///   <param name = "scope">The scope for the named range.</param>
-        ///   <param name = "comment">The comments for the named range.</param>
+        /// Creates/adds this range to <see cref="IXLDefinedNames"/>.
+        /// <para>If the named range exists, it will add this range to that named range.</para>
+        /// <param name = "name">Name of the defined name, without sheet.</param>
+        /// <param name = "scope">The scope for the named range.</param>
+        /// <param name = "comment">The comments for the named range.</param>
         /// </summary>
-        IXLRange AddToNamed(String rangeName, XLScope scope, String comment);
+        IXLRange AddToNamed(String name, XLScope scope, String comment);
 
         /// <summary>
         /// Clears the contents of this range.
@@ -253,7 +227,10 @@ namespace ClosedXML.Excel
         /// </summary>
         void DeleteComments();
 
-        IXLRangeBase SetValue<T>(T value);
+        /// <summary>
+        /// Set value to all cells in the range.
+        /// </summary>
+        IXLRangeBase SetValue(XLCellValue value);
 
         /// <summary>
         ///   Converts this object to a range.
@@ -263,9 +240,6 @@ namespace ClosedXML.Excel
         Boolean IsMerged();
 
         Boolean IsEmpty();
-
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        Boolean IsEmpty(Boolean includeFormats);
 
         Boolean IsEmpty(XLCellsUsedOptions options);
 
@@ -302,6 +276,17 @@ namespace ClosedXML.Excel
 
         IXLAutoFilter SetAutoFilter(Boolean value);
 
+        /// <summary>
+        /// Returns a data validation rule assigned to the range, if any, or creates a new instance of data validation rule if no rule exists.
+        /// </summary>
+        IXLDataValidation GetDataValidation();
+
+        /// <summary>
+        /// Creates a new data validation rule for the range, replacing the existing one.
+        /// </summary>
+        IXLDataValidation CreateDataValidation();
+
+        [Obsolete("Use GetDataValidation() to access the existing rule, or CreateDataValidation() to create a new one.")]
         IXLDataValidation SetDataValidation();
 
         IXLConditionalFormat AddConditionalFormat();
@@ -317,7 +302,6 @@ namespace ClosedXML.Excel
         /// Grows this the current range by the specified number of cells to each side.
         /// </summary>
         /// <param name="growCount">The grow count.</param>
-        /// <returns></returns>
         IXLRangeBase Grow(Int32 growCount);
 
         /// <summary>
@@ -329,7 +313,6 @@ namespace ClosedXML.Excel
         /// Shrinks the current range by the specified number of cells from each side.
         /// </summary>
         /// <param name="shrinkCount">The shrink count.</param>
-        /// <returns></returns>
         IXLRangeBase Shrink(Int32 shrinkCount);
 
         /// <summary>
@@ -364,7 +347,6 @@ namespace ClosedXML.Excel
         /// <param name="otherRange">The other range.</param>
         /// <param name="thisRangePredicate">Predicate applied to this range's cells.</param>
         /// <param name="otherRangePredicate">Predicate applied to the other range's cells.</param>
-        /// <returns></returns>
         IXLCells Difference(IXLRangeBase otherRange, Func<IXLCell, Boolean> thisRangePredicate = null, Func<IXLCell, Boolean> otherRangePredicate = null);
 
         /// <summary>

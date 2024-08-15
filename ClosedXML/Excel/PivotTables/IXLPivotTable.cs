@@ -1,124 +1,23 @@
+#nullable disable
+
 using System;
-using System.Collections.Generic;
 
 namespace ClosedXML.Excel
 {
-    public enum XLPivotTableTheme
-    {
-        None,
-        PivotStyleDark1,
-        PivotStyleDark10,
-        PivotStyleDark11,
-        PivotStyleDark12,
-        PivotStyleDark13,
-        PivotStyleDark14,
-        PivotStyleDark15,
-        PivotStyleDark16,
-        PivotStyleDark17,
-        PivotStyleDark18,
-        PivotStyleDark19,
-        PivotStyleDark2,
-        PivotStyleDark20,
-        PivotStyleDark21,
-        PivotStyleDark22,
-        PivotStyleDark23,
-        PivotStyleDark24,
-        PivotStyleDark25,
-        PivotStyleDark26,
-        PivotStyleDark27,
-        PivotStyleDark28,
-        PivotStyleDark3,
-        PivotStyleDark4,
-        PivotStyleDark5,
-        PivotStyleDark6,
-        PivotStyleDark7,
-        PivotStyleDark8,
-        PivotStyleDark9,
-        PivotStyleLight1,
-        PivotStyleLight10,
-        PivotStyleLight11,
-        PivotStyleLight12,
-        PivotStyleLight13,
-        PivotStyleLight14,
-        PivotStyleLight15,
-        PivotStyleLight16,
-        PivotStyleLight17,
-        PivotStyleLight18,
-        PivotStyleLight19,
-        PivotStyleLight2,
-        PivotStyleLight20,
-        PivotStyleLight21,
-        PivotStyleLight22,
-        PivotStyleLight23,
-        PivotStyleLight24,
-        PivotStyleLight25,
-        PivotStyleLight26,
-        PivotStyleLight27,
-        PivotStyleLight28,
-        PivotStyleLight3,
-        PivotStyleLight4,
-        PivotStyleLight5,
-        PivotStyleLight6,
-        PivotStyleLight7,
-        PivotStyleLight8,
-        PivotStyleLight9,
-        PivotStyleMedium1,
-        PivotStyleMedium10,
-        PivotStyleMedium11,
-        PivotStyleMedium12,
-        PivotStyleMedium13,
-        PivotStyleMedium14,
-        PivotStyleMedium15,
-        PivotStyleMedium16,
-        PivotStyleMedium17,
-        PivotStyleMedium18,
-        PivotStyleMedium19,
-        PivotStyleMedium2,
-        PivotStyleMedium20,
-        PivotStyleMedium21,
-        PivotStyleMedium22,
-        PivotStyleMedium23,
-        PivotStyleMedium24,
-        PivotStyleMedium25,
-        PivotStyleMedium26,
-        PivotStyleMedium27,
-        PivotStyleMedium28,
-        PivotStyleMedium3,
-        PivotStyleMedium4,
-        PivotStyleMedium5,
-        PivotStyleMedium6,
-        PivotStyleMedium7,
-        PivotStyleMedium8,
-        PivotStyleMedium9
-    }
-
-    public enum XLPivotSortType
-    {
-        Default = 0,
-        Ascending = 1,
-        Descending = 2
-    }
-
-    public enum XLPivotSubtotals
-    {
-        DoNotShow,
-        AtTop,
-        AtBottom
-    }
-
-    public enum XLFilterAreaOrder { DownThenOver, OverThenDown }
-
-    public enum XLItemsToRetain { Automatic, None, Max }
-
-    public enum XLPivotTableSourceType { Range, Table }
-
     public interface IXLPivotTable
     {
         XLPivotTableTheme Theme { get; set; }
 
-        IXLPivotFields Fields { get; }
         IXLPivotFields ReportFilters { get; }
+
+        /// <summary>
+        /// Labels displayed in columns (i.e. horizontal axis) of the pivot table.
+        /// </summary>
         IXLPivotFields ColumnLabels { get; }
+
+        /// <summary>
+        /// Labels displayed in rows (i.e. vertical axis) of the pivot table.
+        /// </summary>
         IXLPivotFields RowLabels { get; }
         IXLPivotValues Values { get; }
 
@@ -129,17 +28,33 @@ namespace ClosedXML.Excel
         String ColumnHeaderCaption { get; set; }
         String RowHeaderCaption { get; set; }
 
+        /// <summary>
+        /// Top left corner cell of a pivot table. If the pivot table contains filters fields, the target cell is top
+        /// left cell of the first filter field.
+        /// </summary>
         IXLCell TargetCell { get; set; }
 
-        IXLRange SourceRange { get; set; }
-        IXLTable SourceTable { get; set; }
-        XLPivotTableSourceType SourceType { get; }
-
-        IEnumerable<String> SourceRangeFieldsAvailable { get; }
+        /// <summary>
+        /// The cache of data for the pivot table. The pivot table is created
+        /// from cached data, not up-to-date data in a worksheet.
+        /// </summary>
+        IXLPivotCache PivotCache { get; set; }
 
         Boolean MergeAndCenterWithLabels { get; set; } // MergeItem
         Int32 RowLabelIndent { get; set; } // Indent
-        XLFilterAreaOrder FilterAreaOrder { get; set; } // PageOverThenDown
+
+        /// <summary>
+        /// Filter fields layout setting that indicates layout order of filter fields. The layout
+        /// uses <see cref="FilterFieldsPageWrap"/> to determine when to break to a new row or
+        /// column. Default value is <see cref="XLFilterAreaOrder.DownThenOver"/>.
+        /// </summary>
+        XLFilterAreaOrder FilterAreaOrder { get; set; }
+
+        /// <summary>
+        /// Specifies the number of page fields to display before starting another row or column.
+        /// Value = 0 means unlimited.
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">If value &lt; 0.</exception>
         Int32 FilterFieldsPageWrap { get; set; } // PageWrap
         String ErrorValueReplacement { get; set; } // ErrorCaption
         String EmptyCellReplacement { get; set; } // MissingCaption
@@ -167,11 +82,10 @@ namespace ClosedXML.Excel
         Boolean RepeatRowLabels { get; set; }
         Boolean PrintTitles { get; set; }
 
-        Boolean SaveSourceData { get; set; }
         Boolean EnableShowDetails { get; set; }
-        Boolean RefreshDataOnOpen { get; set; }
-        XLItemsToRetain ItemsToRetainPerField { get; set; }
         Boolean EnableCellEditing { get; set; }
+
+        IXLPivotTable CopyTo(IXLCell targetCell);
 
         IXLPivotTable SetName(String value);
 
@@ -197,6 +111,14 @@ namespace ClosedXML.Excel
 
         IXLPivotTable SetShowGrandTotalsRows(); IXLPivotTable SetShowGrandTotalsRows(Boolean value);
 
+        /// <summary>
+        /// Should pivot table display a grand total for each row in the last column of a pivot
+        /// table (it will enlarge pivot table for extra column).
+        /// </summary>
+        /// <remarks>
+        /// This API has inverse row/column names than the Excel. Excel: <em>On for rows
+        /// </em> should use this method <em>ShowGrandTotalsColumns</em>.
+        /// </remarks>
         IXLPivotTable SetShowGrandTotalsColumns(); IXLPivotTable SetShowGrandTotalsColumns(Boolean value);
 
         IXLPivotTable SetFilteredItemsInSubtotals(); IXLPivotTable SetFilteredItemsInSubtotals(Boolean value);
@@ -231,13 +153,10 @@ namespace ClosedXML.Excel
 
         IXLPivotTable SetPrintTitles(); IXLPivotTable SetPrintTitles(Boolean value);
 
-        IXLPivotTable SetSaveSourceData(); IXLPivotTable SetSaveSourceData(Boolean value);
 
         IXLPivotTable SetEnableShowDetails(); IXLPivotTable SetEnableShowDetails(Boolean value);
 
-        IXLPivotTable SetRefreshDataOnOpen(); IXLPivotTable SetRefreshDataOnOpen(Boolean value);
 
-        IXLPivotTable SetItemsToRetainPerField(XLItemsToRetain value);
 
         IXLPivotTable SetEnableCellEditing(); IXLPivotTable SetEnableCellEditing(Boolean value);
 

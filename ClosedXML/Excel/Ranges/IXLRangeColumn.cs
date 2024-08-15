@@ -1,3 +1,5 @@
+#nullable disable
+
 using System;
 
 namespace ClosedXML.Excel
@@ -95,8 +97,6 @@ namespace ClosedXML.Excel
 
         IXLRangeColumns Columns(String columns);
 
-        IXLRangeColumn SetDataType(XLDataType dataType);
-
         IXLRangeColumn ColumnLeft();
 
         IXLRangeColumn ColumnLeft(Int32 step);
@@ -120,9 +120,6 @@ namespace ClosedXML.Excel
         /// </summary>
         /// <param name="clearOptions">Specify what you want to clear.</param>
         new IXLRangeColumn Clear(XLClearOptions clearOptions = XLClearOptions.All);
-
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLRangeColumn ColumnUsed(Boolean includeFormats);
 
         IXLRangeColumn ColumnUsed(XLCellsUsedOptions options = XLCellsUsedOptions.AllContents);
     }

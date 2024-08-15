@@ -1,5 +1,4 @@
-using System;
-using System.Linq;
+#nullable disable
 
 namespace ClosedXML.Excel
 {
@@ -45,7 +44,7 @@ namespace ClosedXML.Excel
 
                 case XLThemeColor.Accent4:
                     return Accent4;
-                    
+
                 case XLThemeColor.Accent5:
                     return Accent5;
 

@@ -1,4 +1,6 @@
-﻿namespace ClosedXML.Excel
+#nullable disable
+
+namespace ClosedXML.Excel
 {
     internal enum XLRangeType : byte
     {

@@ -1,4 +1,5 @@
-using ClosedXML.Extensions;
+#nullable disable
+
 using System;
 using System.Diagnostics;
 
@@ -11,7 +12,6 @@ namespace ClosedXML.Excel
         /// Create address without worksheet. For calculation only!
         /// </summary>
         /// <param name="cellAddressString"></param>
-        /// <returns></returns>
         public static XLAddress Create(string cellAddressString)
         {
             return Create(null, cellAddressString);
@@ -298,11 +298,7 @@ namespace ClosedXML.Excel
 
         public static Boolean operator ==(XLAddress left, XLAddress right)
         {
-            if (ReferenceEquals(left, right))
-            {
-                return true;
-            }
-            return !ReferenceEquals(left, null) && left.Equals(right);
+            return left.Equals(right);
         }
 
         public static Boolean operator !=(XLAddress left, XLAddress right)
@@ -400,6 +396,11 @@ namespace ClosedXML.Excel
         internal XLAddress WithoutWorksheet()
         {
             return new XLAddress(RowNumber, ColumnNumber, FixedRow, FixedColumn);
+        }
+
+        internal XLAddress WithWorksheet(XLWorksheet worksheet)
+        {
+            return new XLAddress(worksheet, RowNumber, ColumnNumber, FixedRow, FixedColumn);
         }
 
         public String ToStringFixed(XLReferenceStyle referenceStyle)

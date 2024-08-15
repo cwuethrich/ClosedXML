@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -9,10 +9,10 @@ namespace ClosedXML.Excel
     internal class XLTableField : IXLTableField
     {
         internal XLTotalsRowFunction totalsRowFunction;
-        internal String totalsRowLabel;
+        internal String? totalsRowLabel;
         private readonly XLTable table;
 
-        private IXLRangeColumn _column;
+        private IXLRangeColumn? _column;
         private Int32 index;
         private String name;
 
@@ -44,16 +44,16 @@ namespace ClosedXML.Excel
             {
                 return Column.Cells(c =>
                 {
-                    if (table.ShowHeaderRow && c == HeaderCell)
+                    if (table.ShowHeaderRow && c.Equals(HeaderCell))
                         return false;
-                    if (table.ShowTotalsRow && c == TotalsCell)
+                    if (table.ShowTotalsRow && c.Equals(TotalsCell))
                         return false;
                     return true;
                 });
             }
         }
 
-        public IXLCell HeaderCell
+        public IXLCell? HeaderCell
         {
             get
             {
@@ -86,7 +86,7 @@ namespace ClosedXML.Excel
                 if (name == value) return;
 
                 if (table.ShowHeaderRow)
-                    (table.HeadersRow(false).Cell(Index + 1) as XLCell).SetValue(value, false);
+                    ((XLCell)table.HeadersRow(false).Cell(Index + 1)).SetValue(value, setTableHeader: false, checkMergedRanges: true);
 
                 table.RenameField(name, value);
                 name = value;
@@ -95,7 +95,7 @@ namespace ClosedXML.Excel
 
         public IXLTable Table { get { return table; } }
 
-        public IXLCell TotalsCell
+        public IXLCell? TotalsCell
         {
             get
             {
@@ -136,13 +136,13 @@ namespace ClosedXML.Excel
             }
         }
 
-        public String TotalsRowLabel
+        public String? TotalsRowLabel
         {
             get { return totalsRowLabel; }
             set
             {
                 totalsRowFunction = XLTotalsRowFunction.None;
-                (table.TotalsRow().Cell(Index + 1) as XLCell).SetValue(value, false);
+                ((XLCell)table.TotalsRow().Cell(Index + 1)).SetValue(value, setTableHeader: false, checkMergedRanges: true);
                 totalsRowLabel = value;
             }
         }
@@ -173,7 +173,7 @@ namespace ClosedXML.Excel
                 .Select(c => c.DataType);
 
             if (this.table.ShowTotalsRow)
-                dataTypes = dataTypes.Take(dataTypes.Count() - 1);
+                dataTypes = dataTypes.SkipLast();
 
             var distinctDataTypes = dataTypes
                 .GroupBy(dt => dt)
@@ -190,7 +190,7 @@ namespace ClosedXML.Excel
                 .Select(c => c.FormulaR1C1);
 
             if (this.table.ShowTotalsRow)
-                formulas = formulas.Take(formulas.Count() - 1);
+                formulas = formulas.SkipLast();
 
             var distinctFormulas = formulas
                 .GroupBy(f => f)
@@ -208,7 +208,7 @@ namespace ClosedXML.Excel
                 .Select(c => c.StyleValue);
 
             if (this.table.ShowTotalsRow)
-                styles = styles.Take(styles.Count() - 1);
+                styles = styles.SkipLast();
 
             var distinctStyles = styles
                 .Distinct();
@@ -250,7 +250,6 @@ namespace ClosedXML.Excel
                 var lastCell = table.LastRow().Cell(Index + 1);
                 if (lastCell.DataType != XLDataType.Text)
                 {
-                    cell.DataType = lastCell.DataType;
                     cell.Style.NumberFormat = lastCell.Style.NumberFormat;
                 }
             }

@@ -1,4 +1,6 @@
-﻿using System;
+#nullable disable
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -15,28 +17,22 @@ namespace ClosedXML.Excel
         /// <summary>
         /// Read-only style property.
         /// </summary>
-        internal XLStyleValue StyleValue { get; private protected set; }
+        internal virtual XLStyleValue StyleValue { get; private protected set; }
+
+        /// <inheritdoc cref="IXLStylized.StyleValue"/>
         XLStyleValue IXLStylized.StyleValue
         {
             get { return StyleValue; }
         }
 
-        /// <summary>
-        /// Editable style of the workbook element. Modification of this property DOES affect styles of child objects as well - they will
-        /// be changed accordingly. Accessing this property causes a new <see cref="XLStyle"/> instance generated so use this property
-        /// with caution. If you need only _read_ the style consider using <see cref="StyleValue"/> property instead.
-        /// </summary>
+        /// <inheritdoc cref="IXLStylized.Style"/>
         public IXLStyle Style
         {
             get { return InnerStyle; }
             set { SetStyle(value, true); }
         }
 
-        /// <summary>
-        /// Editable style of the workbook element. Modification of this property DOES NOT affect styles of child objects.
-        /// Accessing this property causes a new <see cref="XLStyle"/> instance generated so use this property with caution. If you need
-        /// only _read_ the style consider using <see cref="StyleValue"/> property instead.
-        /// </summary>
+        /// <inheritdoc cref="IXLStylized.InnerStyle"/>
         public IXLStyle InnerStyle
         {
             get { return new XLStyle(this, StyleValue.Key); }
@@ -50,13 +46,16 @@ namespace ClosedXML.Excel
 
         public abstract IXLRanges RangesUsed { get; }
 
-        public abstract IEnumerable<IXLStyle> Styles { get; }
-
         #endregion Properties
 
-        protected XLStylizedBase(XLStyleValue styleValue = null)
+        protected XLStylizedBase(XLStyleValue styleValue)
         {
             StyleValue = styleValue ?? XLWorkbook.DefaultStyleValue;
+        }
+
+        protected XLStylizedBase()
+        {
+            // Ctor only for XLCell that stores `StyleValue` in a slice. 
         }
 
         #region Private methods
@@ -104,10 +103,21 @@ namespace ClosedXML.Excel
             }
         }
 
-        private IEnumerable<XLStylizedBase> GetChildrenRecursively(XLStylizedBase parent)
+        private static HashSet<XLStylizedBase> GetChildrenRecursively(XLStylizedBase parent)
         {
-            return new List<XLStylizedBase> { parent }
-                   .Union(parent.Children.Where(child => child != parent).SelectMany(child => GetChildrenRecursively(child)));
+            void Collect(XLStylizedBase root, HashSet<XLStylizedBase> collector)
+            {
+                collector.Add(root);
+                foreach (var child in root.Children)
+                {
+                    Collect(child, collector);
+                }
+            }
+
+            var results = new HashSet<XLStylizedBase>();
+            Collect(parent, results);
+
+            return results;
         }
 
         #endregion Private methods

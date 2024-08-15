@@ -1,3 +1,5 @@
+#nullable disable
+
 using System;
 
 namespace ClosedXML.Excel
@@ -5,16 +7,18 @@ namespace ClosedXML.Excel
     public interface IXLColumn : IXLRangeBase
     {
         /// <summary>
-        /// Gets or sets the width of this column.
+        /// Gets or sets the width of this column in number of characters (NoC).
         /// </summary>
-        /// <value>
-        /// The width of this column.
-        /// </value>
+        /// <remarks>
+        /// NoC are a non-linear units displayed as a column width in Excel, next to pixels. NoC combined with default font
+        /// of the workbook can express width of the column in pixels and other units.
+        /// </remarks>
         Double Width { get; set; }
 
         /// <summary>
         /// Deletes this column and shifts the columns at the right of this one accordingly.
         /// </summary>
+        /// <remarks>Don't use in a loop due to poor performance. Use <see cref="IXLRange.Delete(XLShiftDeletedCells)"/> instead.</remarks>
         void Delete();
 
         /// <summary>
@@ -83,6 +87,13 @@ namespace ClosedXML.Excel
 
         IXLColumn AdjustToContents(Int32 startRow, Double minWidth, Double maxWidth);
 
+        /// <summary>
+        /// Adjust width of the column according to the content of the cells.
+        /// </summary>
+        /// <param name="startRow">Number of a first row whose content is considered.</param>
+        /// <param name="endRow">Number of a last row whose content is considered.</param>
+        /// <param name="minWidth">Minimum width of adjusted column, in NoC.</param>
+        /// <param name="maxWidth">Maximum width of adjusted column, in NoC.</param>
         IXLColumn AdjustToContents(Int32 startRow, Int32 endRow, Double minWidth, Double maxWidth);
 
         /// <summary>
@@ -173,8 +184,6 @@ namespace ClosedXML.Excel
         /// </summary>
         IXLColumn AddVerticalPageBreak();
 
-        IXLColumn SetDataType(XLDataType dataType);
-
         IXLColumn ColumnLeft();
 
         IXLColumn ColumnLeft(Int32 step);
@@ -188,9 +197,6 @@ namespace ClosedXML.Excel
         /// </summary>
         /// <param name="clearOptions">Specify what you want to clear.</param>
         new IXLColumn Clear(XLClearOptions clearOptions = XLClearOptions.All);
-
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLRangeColumn ColumnUsed(Boolean includeFormats);
 
         IXLRangeColumn ColumnUsed(XLCellsUsedOptions options = XLCellsUsedOptions.AllContents);
     }

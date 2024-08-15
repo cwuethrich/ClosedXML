@@ -6,12 +6,12 @@ namespace ClosedXML.Excel
     {
         #region Static members
 
-        internal static XLProtectionKey GenerateKey(IXLProtection defaultProtection)
+        internal static XLProtectionKey GenerateKey(IXLProtection? defaultProtection)
         {
             if (defaultProtection == null)
                 return XLProtectionValue.Default.Key;
-            if (defaultProtection is XLProtection)
-                return (defaultProtection as XLProtection).Key;
+            if (defaultProtection is XLProtection protection)
+                return protection.Key;
 
             return new XLProtectionKey
             {
@@ -43,17 +43,17 @@ namespace ClosedXML.Excel
         /// </summary>
         /// <param name="style">Style to attach the new instance to.</param>
         /// <param name="value">Style value to use.</param>
-        public XLProtection(XLStyle style, XLProtectionValue value)
+        public XLProtection(XLStyle? style, XLProtectionValue value)
         {
             _style = style ?? XLStyle.CreateEmptyStyle();
             _value = value;
         }
 
-        public XLProtection(XLStyle style, XLProtectionKey key) : this(style, XLProtectionValue.FromKey(ref key))
+        public XLProtection(XLStyle? style, XLProtectionKey key) : this(style, XLProtectionValue.FromKey(ref key))
         {
         }
 
-        public XLProtection(XLStyle style = null, IXLProtection d = null) : this(style, GenerateKey(d))
+        public XLProtection(XLStyle? style = null, IXLProtection? d = null) : this(style, GenerateKey(d))
         {
         }
 
@@ -66,7 +66,7 @@ namespace ClosedXML.Excel
             get { return Key.Locked; }
             set
             {
-                Modify(k => { k.Locked = value; return k; });
+                Modify(k => k with { Locked = value });
             }
         }
 
@@ -75,7 +75,7 @@ namespace ClosedXML.Excel
             get { return Key.Hidden; }
             set
             {
-                Modify(k => { k.Hidden = value; return k; });
+                Modify(k => k with { Hidden = value });
             }
         }
 
@@ -111,9 +111,8 @@ namespace ClosedXML.Excel
 
             _style.Modify(styleKey =>
             {
-                var protection = styleKey.Protection;
-                styleKey.Protection = modification(protection);
-                return styleKey;
+                var protection = modification(styleKey.Protection);
+                return styleKey with { Protection = protection };
             });
         }
 

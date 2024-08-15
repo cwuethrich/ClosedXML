@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace ClosedXML.Excel.Caching
@@ -17,8 +17,8 @@ namespace ClosedXML.Excel.Caching
         {
         }
 
-        public XLWorkbookElementRepositoryBase(XLWorkbook workbook, Func<Tkey, Tvalue> createNew, IEqualityComparer<Tkey> сomparer)
-            : base(createNew, сomparer)
+        public XLWorkbookElementRepositoryBase(XLWorkbook workbook, Func<Tkey, Tvalue> createNew, IEqualityComparer<Tkey> comparer)
+            : base(createNew, comparer)
         {
             Workbook = workbook;
         }

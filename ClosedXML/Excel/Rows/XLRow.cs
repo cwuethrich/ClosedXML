@@ -1,14 +1,18 @@
+using ClosedXML.Graphics;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 
 namespace ClosedXML.Excel
 {
-    internal class XLRow : XLRangeBase, IXLRow
+    internal sealed class XLRow : XLRangeBase, IXLRow
     {
         #region Private fields
 
+        /// <summary>
+        /// Don't use directly, use properties.
+        /// </summary>
+        private XlRowFlags _flags;
         private Double _height;
         private Int32 _outlineLevel;
 
@@ -17,7 +21,7 @@ namespace ClosedXML.Excel
         #region Constructor
 
         /// <summary>
-        /// The direct contructor should only be used in <see cref="XLWorksheet.RangeFactory"/>.
+        /// The direct constructor should only be used in <see cref="XLWorksheet.RangeFactory"/>.
         /// </summary>
         public XLRow(XLWorksheet worksheet, Int32 row)
             : base(XLRangeAddress.EntireRow(worksheet, row), worksheet.StyleValue)
@@ -34,19 +38,6 @@ namespace ClosedXML.Excel
             get { return XLRangeType.Row; }
         }
 
-        public override IEnumerable<IXLStyle> Styles
-        {
-            get
-            {
-                yield return Style;
-
-                int row = RowNumber();
-
-                foreach (XLCell cell in Worksheet.Internals.CellsCollection.GetCellsInRow(row))
-                    yield return cell.Style;
-            }
-        }
-
         protected override IEnumerable<XLStylizedBase> Children
         {
             get
@@ -58,13 +49,77 @@ namespace ClosedXML.Excel
             }
         }
 
-        public Boolean Collapsed { get; set; }
+        public Boolean Collapsed
+        {
+            get => _flags.HasFlag(XlRowFlags.Collapsed);
+            set
+            {
+                if (value)
+                    _flags |= XlRowFlags.Collapsed;
+                else
+                    _flags &= ~XlRowFlags.Collapsed;
+            }
+        }
+
+        /// <summary>
+        /// Distance in pixels from the bottom of the cells in the current row to the typographical
+        /// baseline of the cell content if, hypothetically, the zoom level for the sheet containing
+        /// this row is 100 percent and the cell has bottom-alignment formatting.
+        /// </summary>
+        /// <remarks>
+        /// If the attribute is set, it sets customHeight to true even if the customHeight is explicitly
+        /// set to false. Custom height means no auto-sizing by Excel on load, so if row has this
+        /// attribute, it stops Excel from auto-sizing the height of a row to fit the content on load.
+        /// </remarks>
+        public Double? DyDescent { get; set; }
+
+        /// <summary>
+        /// Should cells in the row display phonetic? This doesn't actually affect whether the phonetic are
+        /// shown in the row, that depends entirely on the <see cref="IXLCell.ShowPhonetic"/> property
+        /// of a cell. This property determines whether a new cell in the row will have it's phonetic turned on
+        /// (and also the state of the "Show or hide phonetic" in Excel when whole row is selected).
+        /// Default is <c>false</c>.
+        /// </summary>
+        public Boolean ShowPhonetic
+        {
+            get => _flags.HasFlag(XlRowFlags.ShowPhonetic);
+            set
+            {
+                if (value)
+                    _flags |= XlRowFlags.ShowPhonetic;
+                else
+                    _flags &= ~XlRowFlags.ShowPhonetic;
+            }
+        }
+
+        public Boolean Loading
+        {
+            get => _flags.HasFlag(XlRowFlags.Loading);
+            set
+            {
+                if (value)
+                    _flags |= XlRowFlags.Loading;
+                else
+                    _flags &= ~XlRowFlags.Loading;
+            }
+        }
+
+        /// <summary>
+        /// Does row have an individual height or is it derived from the worksheet <see cref="XLWorksheet.RowHeight"/>?
+        /// </summary>
+        public Boolean HeightChanged
+        {
+            get => _flags.HasFlag(XlRowFlags.HeightChanged);
+            private set
+            {
+                if (value)
+                    _flags |= XlRowFlags.HeightChanged;
+                else
+                    _flags &= ~XlRowFlags.HeightChanged;
+            }
+        }
 
         #region IXLRow Members
-
-        public Boolean Loading { get; set; }
-
-        public Boolean HeightChanged { get; private set; }
 
         public Double Height
         {
@@ -77,6 +132,10 @@ namespace ClosedXML.Excel
                 _height = value;
             }
         }
+
+        IXLCells IXLRow.Cells(String cellsInRow) => Cells(cellsInRow);
+
+        IXLCells IXLRow.Cells(Int32 firstColumn, Int32 lastColumn) => Cells(firstColumn, lastColumn);
 
         public void ClearHeight()
         {
@@ -159,7 +218,7 @@ namespace ClosedXML.Excel
             return Cells(true, XLCellsUsedOptions.All);
         }
 
-        public override IXLCells Cells(Boolean usedCellsOnly)
+        public override XLCells Cells(Boolean usedCellsOnly)
         {
             if (usedCellsOnly)
                 return Cells(true, XLCellsUsedOptions.AllContents);
@@ -167,7 +226,7 @@ namespace ClosedXML.Excel
                 return Cells(FirstCellUsed().Address.ColumnNumber, LastCellUsed().Address.ColumnNumber);
         }
 
-        public override IXLCells Cells(String cellsInRow)
+        public override XLCells Cells(String cellsInRow)
         {
             var retVal = new XLCells(false, XLCellsUsedOptions.AllContents);
             var rangePairs = cellsInRow.Split(',');
@@ -176,7 +235,7 @@ namespace ClosedXML.Excel
             return retVal;
         }
 
-        public IXLCells Cells(Int32 firstColumn, Int32 lastColumn)
+        public XLCells Cells(Int32 firstColumn, Int32 lastColumn)
         {
             return Cells(firstColumn + ":" + lastColumn);
         }
@@ -207,91 +266,101 @@ namespace ClosedXML.Excel
             return AdjustToContents(startColumn, XLHelper.MaxColumnNumber, minHeight, maxHeight);
         }
 
-        public IXLRow AdjustToContents(Int32 startColumn, Int32 endColumn, Double minHeight, Double maxHeight)
+        public IXLRow AdjustToContents(Int32 startColumn, Int32 endColumn, Double minHeightPt, Double maxHeightPt)
         {
-            var fontCache = new Dictionary<IXLFontBase, Font>();
+            var engine = Worksheet.Workbook.GraphicEngine;
+            var dpi = new Dpi(Worksheet.Workbook.DpiX, Worksheet.Workbook.DpiY);
 
-            Double rowMaxHeight = minHeight;
-            foreach (XLCell c in from XLCell c in Row(startColumn, endColumn).CellsUsed() where !c.IsMerged() select c)
-            {
-                Double thisHeight;
-                Int32 textRotation = c.StyleValue.Alignment.TextRotation;
-                if (c.HasRichText || textRotation != 0 || c.InnerText.Contains(Environment.NewLine))
-                {
-                    var kpList = new List<KeyValuePair<IXLFontBase, string>>();
-                    if (c.HasRichText)
-                    {
-                        foreach (IXLRichString rt in c.RichText)
-                        {
-                            String formattedString = rt.Text;
-                            var arr = formattedString.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
-                            Int32 arrCount = arr.Count();
-                            for (Int32 i = 0; i < arrCount; i++)
-                            {
-                                String s = arr[i];
-                                if (i < arrCount - 1)
-                                    s += Environment.NewLine;
-                                kpList.Add(new KeyValuePair<IXLFontBase, String>(rt, s));
-                            }
-                        }
-                    }
-                    else
-                    {
-                        String formattedString = c.GetFormattedString();
-                        var arr = formattedString.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
-                        Int32 arrCount = arr.Count();
-                        for (Int32 i = 0; i < arrCount; i++)
-                        {
-                            String s = arr[i];
-                            if (i < arrCount - 1)
-                                s += Environment.NewLine;
-                            kpList.Add(new KeyValuePair<IXLFontBase, String>(c.Style.Font, s));
-                        }
-                    }
+            var rowHeightPx = CalculateMinRowHeight(startColumn, endColumn, engine, dpi);
 
-                    Double maxLongCol = kpList.Max(kp => kp.Value.Length);
-                    Double maxHeightCol = kpList.Max(kp => kp.Key.GetHeight(fontCache));
-                    Int32 lineCount = kpList.Count(kp => kp.Value.Contains(Environment.NewLine)) + 1;
-                    if (textRotation == 0)
-                        thisHeight = maxHeightCol * lineCount;
-                    else
-                    {
-                        if (textRotation == 255)
-                            thisHeight = maxLongCol * maxHeightCol;
-                        else
-                        {
-                            Double rotation;
-                            if (textRotation == 90 || textRotation == 180)
-                                rotation = 90;
-                            else
-                                rotation = textRotation % 90;
+            var rowHeightPt = XLHelper.PixelsToPoints(rowHeightPx, dpi.Y);
+            if (rowHeightPt <= 0)
+                rowHeightPt = Worksheet.RowHeight;
 
-                            thisHeight = (rotation / 90.0) * maxHeightCol * maxLongCol * 0.5;
-                        }
-                    }
-                }
-                else
-                    thisHeight = c.Style.Font.GetHeight(fontCache);
+            if (minHeightPt > rowHeightPt)
+                rowHeightPt = minHeightPt;
 
-                if (thisHeight >= maxHeight)
-                {
-                    rowMaxHeight = maxHeight;
-                    break;
-                }
-                if (thisHeight > rowMaxHeight)
-                    rowMaxHeight = thisHeight;
-            }
+            if (maxHeightPt < rowHeightPt)
+                rowHeightPt = maxHeightPt;
 
-            if (rowMaxHeight <= 0)
-                rowMaxHeight = Worksheet.RowHeight;
+            Height = rowHeightPt;
 
-            Height = rowMaxHeight;
-
-            foreach (IDisposable font in fontCache.Values)
-            {
-                font.Dispose();
-            }
             return this;
+        }
+
+        private int CalculateMinRowHeight(int startColumn, int endColumn, IXLGraphicEngine engine, Dpi dpi)
+        {
+            var glyphs = new List<GlyphBox>();
+            XLStyle? cellStyle = null;
+            var rowHeightPx = 0;
+            foreach (var cell in Row(startColumn, endColumn).CellsUsed().Cast<XLCell>())
+            {
+                // Clear maintains capacity -> reduce need for GC
+                glyphs.Clear();
+
+                if (cell.IsMerged())
+                    continue;
+
+                // Reuse styles if possible to reduce memory consumption
+                if (cellStyle is null || cellStyle.Value != cell.StyleValue)
+                    cellStyle = (XLStyle)cell.Style;
+
+                cell.GetGlyphBoxes(engine, dpi, glyphs);
+                var cellHeightPx = (int)Math.Ceiling(GetContentHeight(cellStyle.Alignment.TextRotation, glyphs));
+
+                rowHeightPx = Math.Max(cellHeightPx, rowHeightPx);
+            }
+
+            return rowHeightPx;
+        }
+
+        private static double GetContentHeight(int textRotationDeg, List<GlyphBox> glyphs)
+        {
+            if (textRotationDeg == 0)
+            {
+                var textHeight = 0d;
+                var lineMaxHeight = 0d;
+                foreach (var glyph in glyphs)
+                {
+                    if (!glyph.IsLineBreak)
+                    {
+                        var cellHeightPx = glyph.LineHeight;
+                        lineMaxHeight = Math.Max(cellHeightPx, lineMaxHeight);
+                    }
+                    else
+                    {
+                        // At the end of each line, add height of the line to total height.
+                        textHeight += lineMaxHeight;
+                        lineMaxHeight = 0d;
+                    }
+                }
+
+                // If the last line ends without EOL, it must be also counted
+                textHeight += lineMaxHeight;
+
+                return textHeight;
+            }
+            else if (textRotationDeg == 255)
+            {
+                // Glyphs are vertically aligned.
+                var textHeight = glyphs.Sum(static g => g.LineHeight);
+                return textHeight;
+            }
+            else
+            {
+                // Rotated text
+                var width = 0d;
+                var height = 0d;
+                foreach (var glyph in glyphs)
+                {
+                    width += glyph.AdvanceWidth;
+                    height = Math.Max(glyph.LineHeight, height);
+                }
+
+                var projectedWidth = Math.Sin(XLHelper.DegToRad(textRotationDeg)) * width;
+                var projectedHeight = Math.Cos(XLHelper.DegToRad(textRotationDeg)) * height;
+                return projectedWidth + projectedHeight;
+            }
         }
 
         public IXLRow Hide()
@@ -306,7 +375,17 @@ namespace ClosedXML.Excel
             return this;
         }
 
-        public Boolean IsHidden { get; set; }
+        public Boolean IsHidden
+        {
+            get => _flags.HasFlag(XlRowFlags.IsHidden);
+            set
+            {
+                if (value)
+                    _flags |= XlRowFlags.IsHidden;
+                else
+                    _flags &= ~XlRowFlags.IsHidden;
+            }
+        }
 
         public Int32 OutlineLevel
         {
@@ -446,20 +525,6 @@ namespace ClosedXML.Excel
             return this;
         }
 
-        public IXLRow SetDataType(XLDataType dataType)
-        {
-            DataType = dataType;
-            return this;
-        }
-
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        public IXLRangeRow RowUsed(Boolean includeFormats)
-        {
-            return RowUsed(includeFormats
-                ? XLCellsUsedOptions.All
-                : XLCellsUsedOptions.AllContents);
-        }
-
         public IXLRangeRow RowUsed(XLCellsUsedOptions options = XLCellsUsedOptions.AllContents)
         {
             return Row((this as IXLRangeBase).FirstCellUsed(options),
@@ -480,7 +545,7 @@ namespace ClosedXML.Excel
 
         internal override void WorksheetRangeShiftedRows(XLRange range, int rowsShifted)
         {
-            return; // rows are shifted by XLRowCollection
+            // rows are shifted by XLRowCollection
         }
 
         internal void SetRowNumber(Int32 row)
@@ -604,6 +669,19 @@ namespace ClosedXML.Excel
         public override Boolean IsEntireColumn()
         {
             return false;
+        }
+
+        /// <summary>
+        /// Flag enum to save space, instead of wasting byte for each flag.
+        /// </summary>
+        [Flags]
+        private enum XlRowFlags : byte
+        {
+            Collapsed = 1,
+            IsHidden = 2,
+            ShowPhonetic = 4,
+            HeightChanged = 8,
+            Loading = 16
         }
     }
 }

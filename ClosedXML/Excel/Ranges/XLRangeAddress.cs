@@ -1,12 +1,10 @@
-using ClosedXML.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 
 namespace ClosedXML.Excel
 {
-    internal struct XLRangeAddress : IXLRangeAddress, IEquatable<XLRangeAddress>
+    internal readonly struct XLRangeAddress : IXLRangeAddress, IEquatable<XLRangeAddress>
     {
         #region Static members
 
@@ -29,6 +27,14 @@ namespace ClosedXML.Excel
             new XLAddress(-1, -1, fixedRow: true, fixedColumn: true)
         );
 
+        internal static XLRangeAddress FromSheetRange(XLWorksheet? worksheet, XLSheetRange range)
+        {
+            return new XLRangeAddress(
+                new XLAddress(worksheet, range.FirstPoint.Row, range.FirstPoint.Column, fixedRow: false, fixedColumn: false),
+                new XLAddress(range.LastPoint.Row, range.LastPoint.Column, fixedRow: false, fixedColumn: false)
+            );
+        }
+
         #endregion Static members
 
         #region Constructor
@@ -40,11 +46,11 @@ namespace ClosedXML.Excel
             LastAddress = lastAddress;
         }
 
-        public XLRangeAddress(XLWorksheet worksheet, String rangeAddress) : this()
+        public XLRangeAddress(XLWorksheet? worksheet, String rangeAddress) : this()
         {
-            string addressToUse = rangeAddress.Contains("!")
-                                      ? rangeAddress.Substring(rangeAddress.IndexOf("!") + 1)
-                                      : rangeAddress;
+            string addressToUse = rangeAddress.Contains('!')
+                ? rangeAddress.Substring(rangeAddress.LastIndexOf('!') + 1)
+                : rangeAddress;
 
             string firstPart;
             string secondPart;
@@ -88,13 +94,13 @@ namespace ClosedXML.Excel
 
         #region Public properties
 
-        public XLWorksheet Worksheet { get; }
+        public XLWorksheet? Worksheet { get; }
 
         public XLAddress FirstAddress { get; }
 
         public XLAddress LastAddress { get; }
 
-        IXLWorksheet IXLRangeAddress.Worksheet
+        IXLWorksheet? IXLRangeAddress.Worksheet
         {
             get { return Worksheet; }
         }
@@ -150,7 +156,6 @@ namespace ClosedXML.Excel
         /// Lead a range address to a normal form - when <see cref="FirstAddress"/> points to the top-left address and
         /// <see cref="LastAddress"/> points to the bottom-right address.
         /// </summary>
-        /// <returns></returns>
         public XLRangeAddress Normalize()
         {
             if (FirstAddress.RowNumber <= LastAddress.RowNumber &&
@@ -217,11 +222,33 @@ namespace ClosedXML.Excel
             return Contains(in xlAddress);
         }
 
+        /// <summary>
+        /// Does this range contains whole another range?
+        /// </summary>
+        public bool ContainsWhole(IXLRangeAddress range)
+        {
+            if (!range.IsValid)
+                return false;
+
+            return
+                range.FirstAddress.ColumnNumber >= FirstAddress.ColumnNumber &&
+                range.FirstAddress.RowNumber >= FirstAddress.RowNumber &&
+                range.LastAddress.ColumnNumber <= LastAddress.ColumnNumber &&
+                range.LastAddress.RowNumber <= LastAddress.RowNumber;
+        }
+
         internal IXLRangeAddress WithoutWorksheet()
         {
             return new XLRangeAddress(
                 FirstAddress.WithoutWorksheet(),
                 LastAddress.WithoutWorksheet());
+        }
+
+        internal XLRangeAddress WithWorksheet(XLWorksheet worksheet)
+        {
+            return new XLRangeAddress(
+                FirstAddress.WithWorksheet(worksheet),
+                LastAddress.WithWorksheet(worksheet));
         }
 
         internal bool Contains(in XLAddress address)
@@ -261,7 +288,7 @@ namespace ClosedXML.Excel
 
             if (includeSheet || WorksheetIsDeleted)
                 return String.Concat(
-                    WorksheetIsDeleted ? "#REF" : Worksheet.Name.EscapeSheetName(),
+                    WorksheetIsDeleted ? "#REF" : Worksheet!.Name.EscapeSheetName(),
                     "!", address);
 
             return address;
@@ -291,7 +318,7 @@ namespace ClosedXML.Excel
 
             if (includeSheet || WorksheetIsDeleted)
                 return String.Concat(
-                    WorksheetIsDeleted ? "#REF" : Worksheet.Name.EscapeSheetName(),
+                    WorksheetIsDeleted ? "#REF" : Worksheet!.Name.EscapeSheetName(),
                     "!", address);
 
             return address;
@@ -358,7 +385,7 @@ namespace ClosedXML.Excel
             var address = (XLRangeAddress)obj;
             return FirstAddress.Equals(address.FirstAddress) &&
                    LastAddress.Equals(address.LastAddress) &&
-                   EqualityComparer<XLWorksheet>.Default.Equals(Worksheet, address.Worksheet);
+                   EqualityComparer<XLWorksheet?>.Default.Equals(Worksheet, address.Worksheet);
         }
 
         public override int GetHashCode()
@@ -366,7 +393,7 @@ namespace ClosedXML.Excel
             var hashCode = -778064135;
             hashCode = hashCode * -1521134295 + FirstAddress.GetHashCode();
             hashCode = hashCode * -1521134295 + LastAddress.GetHashCode();
-            hashCode = hashCode * -1521134295 + EqualityComparer<XLWorksheet>.Default.GetHashCode(Worksheet);
+            hashCode = hashCode * -1521134295 + EqualityComparer<XLWorksheet?>.Default.GetHashCode(Worksheet);
             return hashCode;
         }
 
@@ -375,6 +402,13 @@ namespace ClosedXML.Excel
             return ReferenceEquals(Worksheet, other.Worksheet) &&
                    FirstAddress == other.FirstAddress &&
                    LastAddress == other.LastAddress;
+        }
+
+        public bool IsSingleCell()
+        {
+            return IsValid
+                   && FirstAddress.RowNumber == LastAddress.RowNumber
+                   && FirstAddress.ColumnNumber == LastAddress.ColumnNumber;
         }
 
         public bool IsEntireColumn()
@@ -440,7 +474,7 @@ namespace ClosedXML.Excel
 
         internal XLRangeAddress Intersection(in XLRangeAddress otherRangeAddress)
         {
-            if (!this.Worksheet.Equals(otherRangeAddress.Worksheet))
+            if (!Equals(Worksheet, otherRangeAddress.Worksheet))
                 throw new ArgumentOutOfRangeException(nameof(otherRangeAddress), "The other range address is on a different worksheet");
 
             var thisRangeAddressNormalized = this.Normalize();
@@ -461,7 +495,7 @@ namespace ClosedXML.Excel
             );
         }
 
-        public IXLRange AsRange()
+        public IXLRange? AsRange()
         {
             if (this.Worksheet == null)
                 throw new InvalidOperationException("The worksheet of the current range address has not been set.");

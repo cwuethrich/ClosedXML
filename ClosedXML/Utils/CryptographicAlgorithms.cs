@@ -1,4 +1,6 @@
-﻿// Keep this file CodeMaid organised and cleaned
+#nullable disable
+
+// Keep this file CodeMaid organised and cleaned
 using System;
 using System.Linq;
 using System.Security.Cryptography;
@@ -37,7 +39,7 @@ namespace ClosedXML.Utils
             if (salt == null)
                 throw new ArgumentNullException(nameof(salt));
 
-            if ("" == password) return "";
+            if (password.Length == 0) return "";
 
             switch (algorithm)
             {

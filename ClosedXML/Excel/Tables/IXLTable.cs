@@ -1,3 +1,5 @@
+#nullable disable
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -12,6 +14,11 @@ namespace ClosedXML.Excel
         Boolean EmphasizeFirstColumn { get; set; }
         Boolean EmphasizeLastColumn { get; set; }
         IEnumerable<IXLTableField> Fields { get; }
+
+        /// <summary>
+        /// Change the name of a table. Structural references to the table are not updated.
+        /// </summary>
+        /// <exception cref="ArgumentException">If the new table name is already used by other table in the sheet.</exception>
         string Name { get; set; }
         Boolean ShowAutoFilter { get; set; }
         Boolean ShowColumnStripes { get; set; }
@@ -26,6 +33,12 @@ namespace ClosedXML.Excel
         /// <param name="clearOptions">Specify what you want to clear.</param>
         new IXLTable Clear(XLClearOptions clearOptions = XLClearOptions.All);
 
+        /// <summary>
+        /// Get field of the table.
+        /// </summary>
+        /// <param name="fieldName">Name of the field. Field names are case-insensitive.</param>
+        /// <returns>Requested field.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Table doesn't contain <paramref name="fieldName"/> field.</exception>
         IXLTableField Field(string fieldName);
 
         IXLTableField Field(int fieldIndex);
@@ -120,21 +133,18 @@ namespace ClosedXML.Excel
         /// Resizes the table to the specified range address.
         /// </summary>
         /// <param name="range">The new table range.</param>
-        /// <returns></returns>
         IXLTable Resize(IXLRange range);
 
         /// <summary>
         /// Resizes the table to the specified range address.
         /// </summary>
         /// <param name="rangeAddress">The range boundaries.</param>
-        /// <returns></returns>
         IXLTable Resize(IXLRangeAddress rangeAddress);
 
         /// <summary>
         /// Resizes the table to the specified range address.
         /// </summary>
         /// <param name="rangeAddress">The range boundaries.</param>
-        /// <returns></returns>
         IXLTable Resize(string rangeAddress);
 
         /// <summary>
@@ -142,7 +152,6 @@ namespace ClosedXML.Excel
         /// </summary>
         /// <param name="firstCell">The first cell in the range.</param>
         /// <param name="lastCell">The last cell in the range.</param>
-        /// <returns></returns>
         IXLTable Resize(IXLCell firstCell, IXLCell lastCell);
 
         /// <summary>
@@ -150,7 +159,6 @@ namespace ClosedXML.Excel
         /// </summary>
         /// <param name="firstCellAddress">The first cell address in the worksheet.</param>
         /// <param name="lastCellAddress">The last cell address in the worksheet.</param>
-        /// <returns></returns>
         IXLTable Resize(string firstCellAddress, string lastCellAddress);
 
         /// <summary>
@@ -158,7 +166,6 @@ namespace ClosedXML.Excel
         /// </summary>
         /// <param name="firstCellAddress">The first cell address in the worksheet.</param>
         /// <param name="lastCellAddress">The last cell address in the worksheet.</param>
-        /// <returns></returns>
         IXLTable Resize(IXLAddress firstCellAddress, IXLAddress lastCellAddress);
 
         /// <summary>
@@ -168,7 +175,6 @@ namespace ClosedXML.Excel
         /// <param name="firstCellColumn">The first cell's column of the range to return.</param>
         /// <param name="lastCellRow">The last cell's row of the range to return.</param>
         /// <param name="lastCellColumn">The last cell's column of the range to return.</param>
-        /// <returns></returns>
         IXLTable Resize(int firstCellRow, int firstCellColumn, int lastCellRow, int lastCellColumn);
 
         new IXLAutoFilter SetAutoFilter();
@@ -206,13 +212,11 @@ namespace ClosedXML.Excel
         /// <summary>
         /// Converts the table to an enumerable of dynamic objects
         /// </summary>
-        /// <returns></returns>
         IEnumerable<dynamic> AsDynamicEnumerable();
 
         /// <summary>
         /// Converts the table to a standard .NET System.Data.DataTable
         /// </summary>
-        /// <returns></returns>
         DataTable AsNativeDataTable();
 
         IXLTable CopyTo(IXLWorksheet targetSheet);

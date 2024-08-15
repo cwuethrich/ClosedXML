@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 
@@ -57,24 +56,9 @@ namespace ClosedXML.Excel.Drawings
             return picture;
         }
 
-        public IXLPicture Add(Bitmap bitmap)
-        {
-            var picture = new XLPicture(_worksheet, bitmap);
-            _pictures.Add(picture);
-            picture.Name = GetNextPictureName();
-            return picture;
-        }
-
-        public IXLPicture Add(Bitmap bitmap, string name)
-        {
-            var picture = Add(bitmap);
-            picture.Name = name;
-            return picture;
-        }
-
         public IXLPicture Add(string imageFile)
         {
-            using (var fs = File.Open(imageFile, FileMode.Open))
+            using (var fs = File.OpenRead(imageFile))
             {
                 var picture = new XLPicture(_worksheet, fs);
                 _pictures.Add(picture);
@@ -135,18 +119,18 @@ namespace ClosedXML.Excel.Drawings
 
         public IXLPicture Picture(string pictureName)
         {
-            if (TryGetPicture(pictureName, out IXLPicture p))
-                return p;
+            if (TryGetPicture(pictureName, out IXLPicture? p))
+                return p!;
 
             throw new ArgumentOutOfRangeException(nameof(pictureName), $"Picture {pictureName} was not found.");
         }
 
-        public bool TryGetPicture(string pictureName, out IXLPicture picture)
+        public bool TryGetPicture(string pictureName, out IXLPicture? picture)
         {
-            var matches = _pictures.Where(p => p.Name.Equals(pictureName, StringComparison.OrdinalIgnoreCase));
-            if (matches.Any())
+            var match = _pictures.FirstOrDefault(p => p.Name.Equals(pictureName, StringComparison.OrdinalIgnoreCase));
+            if (match is not null)
             {
-                picture = matches.First();
+                picture = match;
                 return true;
             }
             picture = null;
@@ -155,7 +139,7 @@ namespace ClosedXML.Excel.Drawings
 
         internal IXLPicture Add(Stream stream, string name, int Id)
         {
-            var picture = Add(stream) as XLPicture;
+            var picture = (XLPicture)Add(stream);
             picture.SetName(name);
             picture.Id = Id;
             return picture;

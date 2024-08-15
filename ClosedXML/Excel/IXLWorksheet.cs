@@ -1,6 +1,6 @@
+using ClosedXML.Excel.CalcEngine.Exceptions;
 using ClosedXML.Excel.Drawings;
 using System;
-using System.Drawing;
 using System.IO;
 
 namespace ClosedXML.Excel
@@ -25,7 +25,8 @@ namespace ClosedXML.Excel
         Double RowHeight { get; set; }
 
         /// <summary>
-        /// Gets or sets the name (caption) of this worksheet.
+        /// Gets or sets the name (caption) of this worksheet. The sheet rename also renames sheet
+        /// in formulas and defined names.
         /// </summary>
         String Name { get; set; }
 
@@ -51,19 +52,16 @@ namespace ClosedXML.Excel
         IXLRow FirstRow();
 
         /// <summary>
-        /// Gets the first row of the worksheet that contains a cell with a value.
+        /// Gets the first non-empty row of the worksheet that contains a cell with a value.
         /// <para>Formatted empty cells do not count.</para>
         /// </summary>
-        IXLRow FirstRowUsed();
+        IXLRow? FirstRowUsed();
 
         /// <summary>
-        /// Gets the first row of the worksheet that contains a cell with a value.
+        /// Gets the first non-empty row of the worksheet that contains a cell with a value.
         /// </summary>
-        /// <param name="includeFormats">If set to <c>true</c> formatted empty cells will count as used.</param>
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLRow FirstRowUsed(Boolean includeFormats);
-
-        IXLRow FirstRowUsed(XLCellsUsedOptions options);
+        /// <param name="options">The options to determine whether a cell is used.</param>
+        IXLRow? FirstRowUsed(XLCellsUsedOptions options);
 
         /// <summary>
         /// Gets the last row of the worksheet.
@@ -71,18 +69,15 @@ namespace ClosedXML.Excel
         IXLRow LastRow();
 
         /// <summary>
-        /// Gets the last row of the worksheet that contains a cell with a value.
+        /// Gets the last non-empty row of the worksheet that contains a cell with a value.
         /// </summary>
-        IXLRow LastRowUsed();
+        IXLRow? LastRowUsed();
 
         /// <summary>
-        /// Gets the last row of the worksheet that contains a cell with a value.
+        /// Gets the last non-empty row of the worksheet that contains a cell with a value.
         /// </summary>
-        /// <param name="includeFormats">If set to <c>true</c> formatted empty cells will count as used.</param>
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLRow LastRowUsed(Boolean includeFormats);
-
-        IXLRow LastRowUsed(XLCellsUsedOptions options);
+        /// <param name="options">The options to determine whether a cell is used.</param>
+        IXLRow? LastRowUsed(XLCellsUsedOptions options);
 
         /// <summary>
         /// Gets the first column of the worksheet.
@@ -90,18 +85,15 @@ namespace ClosedXML.Excel
         IXLColumn FirstColumn();
 
         /// <summary>
-        /// Gets the first column of the worksheet that contains a cell with a value.
+        /// Gets the first non-empty column of the worksheet that contains a cell with a value.
         /// </summary>
-        IXLColumn FirstColumnUsed();
+        IXLColumn? FirstColumnUsed();
 
         /// <summary>
-        /// Gets the first column of the worksheet that contains a cell with a value.
+        /// Gets the first non-empty column of the worksheet that contains a cell with a value.
         /// </summary>
-        /// <param name="includeFormats">If set to <c>true</c> formatted empty cells will count as used.</param>
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLColumn FirstColumnUsed(Boolean includeFormats);
-
-        IXLColumn FirstColumnUsed(XLCellsUsedOptions options);
+        /// <param name="options">The options to determine whether a cell is used.</param>
+        IXLColumn? FirstColumnUsed(XLCellsUsedOptions options);
 
         /// <summary>
         /// Gets the last column of the worksheet.
@@ -109,18 +101,15 @@ namespace ClosedXML.Excel
         IXLColumn LastColumn();
 
         /// <summary>
-        /// Gets the last column of the worksheet that contains a cell with a value.
+        /// Gets the last non-empty column of the worksheet that contains a cell with a value.
         /// </summary>
-        IXLColumn LastColumnUsed();
+        IXLColumn? LastColumnUsed();
 
         /// <summary>
-        /// Gets the last column of the worksheet that contains a cell with a value.
+        /// Gets the last non-empty column of the worksheet that contains a cell with a value.
         /// </summary>
-        /// <param name="includeFormats">If set to <c>true</c> formatted empty cells will count as used.</param>
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLColumn LastColumnUsed(Boolean includeFormats);
-
-        IXLColumn LastColumnUsed(XLCellsUsedOptions options);
+        /// <param name="options">The options to determine whether a cell is used.</param>
+        IXLColumn? LastColumnUsed(XLCellsUsedOptions options);
 
         /// <summary>
         /// Gets a collection of all columns in this worksheet.
@@ -165,7 +154,6 @@ namespace ClosedXML.Excel
         /// </summary>
         /// <param name="firstRow">The first row to return.</param>
         /// <param name="lastRow">The last row to return.</param>
-        /// <returns></returns>
         IXLRows Rows(Int32 firstRow, Int32 lastRow);
 
         /// <summary>
@@ -195,6 +183,7 @@ namespace ClosedXML.Excel
 
         /// <summary>Gets the cell at the specified address.</summary>
         /// <param name="cellAddressInRange">The cell address in the worksheet.</param>
+        /// <exception cref="ArgumentException">Address is not A1 or workbook-scoped named range.</exception>
         IXLCell Cell(string cellAddressInRange);
 
         /// <summary>
@@ -217,6 +206,7 @@ namespace ClosedXML.Excel
         /// <summary>Returns the specified range.</summary>
         /// <para>e.g. Range("A1"), Range("A1:C2")</para>
         /// <param name="rangeAddress">The range boundaries.</param>
+        /// <exception cref="ArgumentException"><paramref name="rangeAddress"/> is not a valid address or named range.</exception>
         IXLRange Range(string rangeAddress);
 
         /// <summary>Returns the specified range.</summary>
@@ -302,16 +292,23 @@ namespace ClosedXML.Excel
         /// </summary>
         void Delete();
 
-        /// <summary>
-        /// Gets an object to manage this worksheet's named ranges.
-        /// </summary>
-        IXLNamedRanges NamedRanges { get; }
+        [Obsolete($"Use {nameof(DefinedNames)} instead.")]
+        IXLDefinedNames NamedRanges { get; }
 
         /// <summary>
-        /// Gets the specified named range.
+        /// Gets an object to manage this worksheet's defined names.
         /// </summary>
-        /// <param name="rangeName">Name of the range.</param>
-        IXLNamedRange NamedRange(String rangeName);
+        IXLDefinedNames DefinedNames { get; }
+
+        [Obsolete($"Use {nameof(DefinedName)} instead.")]
+        IXLDefinedName NamedRange(String rangeName);
+
+        /// <summary>
+        /// Gets the specified defined name.
+        /// </summary>
+        /// <param name="name">Name identifier of defined name, without sheet name.</param>
+        /// <exception cref="ArgumentException">Name wasn't found in sheets defined names.</exception>
+        IXLDefinedName DefinedName(String name);
 
         /// <summary>
         /// Gets an object to manage how the worksheet is going to displayed by Excel.
@@ -339,21 +336,25 @@ namespace ClosedXML.Excel
         /// Copies the
         /// </summary>
         /// <param name="newSheetName"></param>
-        /// <returns></returns>
         IXLWorksheet CopyTo(String newSheetName);
 
         IXLWorksheet CopyTo(String newSheetName, Int32 position);
 
+        IXLWorksheet CopyTo(XLWorkbook workbook);
+
+        /// <summary>
+        /// Copy a worksheet from this workbook to a different workbook as a new sheet.
+        /// </summary>
+        /// <param name="workbook">Workbook into which copy this sheet.</param>
+        /// <param name="newSheetName">Name of new sheet in the <paramref name="workbook"/> where will the data be copied. Sheet will be in the last position.</param>
+        /// <returns>Newly created sheet in the <paramref name="workbook"/>.</returns>
         IXLWorksheet CopyTo(XLWorkbook workbook, String newSheetName);
 
         IXLWorksheet CopyTo(XLWorkbook workbook, String newSheetName, Int32 position);
 
-        IXLRange RangeUsed();
+        IXLRange? RangeUsed();
 
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLRange RangeUsed(bool includeFormats);
-
-        IXLRange RangeUsed(XLCellsUsedOptions options);
+        IXLRange? RangeUsed(XLCellsUsedOptions options);
 
         IXLDataValidations DataValidations { get; }
 
@@ -427,19 +428,13 @@ namespace ClosedXML.Excel
 
         IXLAutoFilter AutoFilter { get; }
 
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLRows RowsUsed(Boolean includeFormats, Func<IXLRow, Boolean> predicate = null);
+        IXLRows RowsUsed(XLCellsUsedOptions options = XLCellsUsedOptions.AllContents, Func<IXLRow, Boolean>? predicate = null);
 
-        IXLRows RowsUsed(XLCellsUsedOptions options = XLCellsUsedOptions.AllContents, Func<IXLRow, Boolean> predicate = null);
+        IXLRows RowsUsed(Func<IXLRow, Boolean>? predicate);
 
-        IXLRows RowsUsed(Func<IXLRow, Boolean> predicate);
+        IXLColumns ColumnsUsed(XLCellsUsedOptions options = XLCellsUsedOptions.AllContents, Func<IXLColumn, Boolean>? predicate = null);
 
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        IXLColumns ColumnsUsed(Boolean includeFormats, Func<IXLColumn, Boolean> predicate = null);
-
-        IXLColumns ColumnsUsed(XLCellsUsedOptions options = XLCellsUsedOptions.AllContents, Func<IXLColumn, Boolean> predicate = null);
-
-        IXLColumns ColumnsUsed(Func<IXLColumn, Boolean> predicate);
+        IXLColumns ColumnsUsed(Func<IXLColumn, Boolean>? predicate);
 
         IXLRanges MergedRanges { get; }
 
@@ -449,12 +444,21 @@ namespace ClosedXML.Excel
 
         IXLRanges SelectedRanges { get; }
 
-        IXLCell ActiveCell { get; set; }
-
-        Object Evaluate(String expression);
+        /// <summary>
+        /// The active cell of the worksheet.
+        /// </summary>
+        IXLCell? ActiveCell { get; set; }
 
         /// <summary>
-        /// Force recalculation of all cell formulas.
+        /// Evaluate an formula and return a result.
+        /// </summary>
+        /// <param name="expression">Formula to evaluate.</param>
+        /// <param name="formulaAddress">A cell address that is used to provide context for formula calculation (mostly implicit intersection).</param>
+        /// <exception cref="MissingContextException">If <paramref name="formulaAddress"/> was needed for some part of calculation.</exception>
+        XLCellValue Evaluate(String expression, string? formulaAddress = null);
+
+        /// <summary>
+        /// Force recalculation of all cell formulas in the sheet while leaving other sheets without change, even if their dirty cells.
         /// </summary>
         void RecalculateAllFormulas();
 
@@ -471,10 +475,6 @@ namespace ClosedXML.Excel
         IXLPicture AddPicture(Stream stream, XLPictureFormat format);
 
         IXLPicture AddPicture(Stream stream, XLPictureFormat format, String name);
-
-        IXLPicture AddPicture(Bitmap bitmap);
-
-        IXLPicture AddPicture(Bitmap bitmap, String name);
 
         IXLPicture AddPicture(String imageFile);
 

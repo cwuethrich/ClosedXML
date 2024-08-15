@@ -1,3 +1,5 @@
+#nullable disable
+
 // Keep this file CodeMaid organised and cleaned
 using System;
 using System.Collections.Generic;
@@ -22,7 +24,7 @@ namespace ClosedXML.Excel
                    && !bankHolidays.Contains(date);
         }
 
-        public static DateTime NextWorkday(this DateTime date, IEnumerable<DateTime> bankHolidays)
+        public static DateTime NextWorkday(this DateTime date, IReadOnlyList<DateTime> bankHolidays)
         {
             var nextDate = date.AddDays(1);
             while (!nextDate.IsWorkDay(bankHolidays))
@@ -31,13 +33,22 @@ namespace ClosedXML.Excel
             return nextDate;
         }
 
-        public static DateTime PreviousWorkDay(this DateTime date, IEnumerable<DateTime> bankHolidays)
+        public static DateTime PreviousWorkDay(this DateTime date, IReadOnlyCollection<DateTime> bankHolidays)
         {
             var previousDate = date.AddDays(-1);
             while (!previousDate.IsWorkDay(bankHolidays))
                 previousDate = previousDate.AddDays(-1);
 
             return previousDate;
+        }
+
+        public static double ToSerialDateTime(this DateTime dateTime)
+        {
+            // Excel says 1900 was a leap year  :( Replicate an incorrect behavior thanks
+            // to Lotus 1-2-3 decision from 1983...
+            var oDate = dateTime.ToOADate();
+            const int nonExistent1900Feb29SerialDate = 60;
+            return oDate <= nonExistent1900Feb29SerialDate ? oDate - 1 : oDate;
         }
     }
 }

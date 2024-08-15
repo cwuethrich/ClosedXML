@@ -1,10 +1,13 @@
-using ClosedXML.Excel.CalcEngine.Exceptions;
+// Keep this file CodeMaid organised and cleaned
 using ClosedXML.Excel.CalcEngine.Functions;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
+using ClosedXML.Excel.CalcEngine.Exceptions;
+using static ClosedXML.Excel.CalcEngine.Functions.SignatureAdapter;
 
 namespace ClosedXML.Excel.CalcEngine
 {
@@ -12,9 +15,11 @@ namespace ClosedXML.Excel.CalcEngine
     {
         private static readonly Random _rnd = new Random();
 
-        public static void Register(CalcEngine ce)
+        #region Register
+
+        public static void Register(FunctionRegistry ce)
         {
-            ce.RegisterFunction("ABS", 1, Abs);
+            ce.RegisterFunction("ABS", 1, 1, Adapt(Abs), FunctionFlags.Scalar);
             ce.RegisterFunction("ACOS", 1, Acos);
             ce.RegisterFunction("ACOSH", 1, Acosh);
             ce.RegisterFunction("ACOT", 1, Acot);
@@ -28,7 +33,7 @@ namespace ClosedXML.Excel.CalcEngine
             ce.RegisterFunction("BASE", 2, 3, Base);
             ce.RegisterFunction("CEILING", 2, Ceiling);
             ce.RegisterFunction("CEILING.MATH", 1, 3, CeilingMath);
-            ce.RegisterFunction("COMBIN", 2, Combin);
+            ce.RegisterFunction("COMBIN", 2, 2, Adapt(Combin), FunctionFlags.Scalar);
             ce.RegisterFunction("COMBINA", 2, CombinA);
             ce.RegisterFunction("COS", 1, Cos);
             ce.RegisterFunction("COSH", 1, Cosh);
@@ -40,7 +45,7 @@ namespace ClosedXML.Excel.CalcEngine
             ce.RegisterFunction("DEGREES", 1, Degrees);
             ce.RegisterFunction("EVEN", 1, Even);
             ce.RegisterFunction("EXP", 1, Exp);
-            ce.RegisterFunction("FACT", 1, Fact);
+            ce.RegisterFunction("FACT", 1, 1, Adapt(Fact), FunctionFlags.Scalar);
             ce.RegisterFunction("FACTDOUBLE", 1, FactDouble);
             ce.RegisterFunction("FLOOR", 2, Floor);
             ce.RegisterFunction("FLOOR.MATH", 1, 3, FloorMath);
@@ -50,9 +55,9 @@ namespace ClosedXML.Excel.CalcEngine
             ce.RegisterFunction("LN", 1, Ln);
             ce.RegisterFunction("LOG", 1, 2, Log);
             ce.RegisterFunction("LOG10", 1, Log10);
-            ce.RegisterFunction("MDETERM", 1, MDeterm);
-            ce.RegisterFunction("MINVERSE", 1, MInverse);
-            ce.RegisterFunction("MMULT", 2, MMult);
+            ce.RegisterFunction("MDETERM", 1, MDeterm, AllowRange.All);
+            ce.RegisterFunction("MINVERSE", 1, MInverse, AllowRange.All);
+            ce.RegisterFunction("MMULT", 2, MMult, AllowRange.All);
             ce.RegisterFunction("MOD", 2, Mod);
             ce.RegisterFunction("MROUND", 2, MRound);
             ce.RegisterFunction("MULTINOMIAL", 1, 255, Multinomial);
@@ -70,17 +75,17 @@ namespace ClosedXML.Excel.CalcEngine
             ce.RegisterFunction("ROUNDUP", 1, 2, RoundUp);
             ce.RegisterFunction("SEC", 1, Sec);
             ce.RegisterFunction("SECH", 1, Sech);
-            ce.RegisterFunction("SERIESSUM", 4, SeriesSum);
+            ce.RegisterFunction("SERIESSUM", 4, SeriesSum, AllowRange.Only, 3);
             ce.RegisterFunction("SIGN", 1, Sign);
             ce.RegisterFunction("SIN", 1, Sin);
             ce.RegisterFunction("SINH", 1, Sinh);
             ce.RegisterFunction("SQRT", 1, Sqrt);
             ce.RegisterFunction("SQRTPI", 1, SqrtPi);
-            ce.RegisterFunction("SUBTOTAL", 2, 255, Subtotal);
-            ce.RegisterFunction("SUM", 1, int.MaxValue, Sum);
-            ce.RegisterFunction("SUMIF", 2, 3, SumIf);
-            ce.RegisterFunction("SUMIFS", 3, 255, SumIfs);
-            ce.RegisterFunction("SUMPRODUCT", 1, 30, SumProduct);
+            ce.RegisterFunction("SUBTOTAL", 2, 255, Adapt(Subtotal), FunctionFlags.Range, AllowRange.Except, 0);
+            ce.RegisterFunction("SUM", 1, int.MaxValue, Sum, FunctionFlags.Range, AllowRange.All);
+            ce.RegisterFunction("SUMIF", 2, 3, SumIf, AllowRange.Only, 0, 2);
+            ce.RegisterFunction("SUMIFS", 3, 255, SumIfs, AllowRange.Only, new[] { 0 }.Concat(Enumerable.Range(0, 128).Select(x => x * 2 + 1)).ToArray());
+            ce.RegisterFunction("SUMPRODUCT", 1, 30, SumProduct, AllowRange.All);
             ce.RegisterFunction("SUMSQ", 1, 255, SumSq);
             //ce.RegisterFunction("SUMX2MY2", SumX2MY2, 1);
             //ce.RegisterFunction("SUMX2PY2", SumX2PY2, 1);
@@ -90,27 +95,120 @@ namespace ClosedXML.Excel.CalcEngine
             ce.RegisterFunction("TRUNC", 1, 2, Trunc);
         }
 
-        private static object Abs(List<Expression> p)
+        #endregion Register
+
+        public static double ASinh(double x)
         {
-            return Math.Abs(p[0]);
+            return Math.Log(x + Math.Sqrt(x * x + 1.0));
+        }
+
+        public static double DegreesToGrads(double degrees)
+        {
+            return degrees / 9.0 * 10.0;
+        }
+
+        public static double DegreesToRadians(double degrees)
+        {
+            return Math.PI / 180.0 * degrees;
+        }
+
+        public static double GradsToDegrees(double grads)
+        {
+            return grads / 10.0 * 9.0;
+        }
+
+        public static double GradsToRadians(double grads)
+        {
+            return grads / 200.0 * Math.PI;
+        }
+
+        public static double RadiansToDegrees(double radians)
+        {
+            return 180.0 / Math.PI * radians;
+        }
+
+        public static double RadiansToGrads(double radians)
+        {
+            return radians / Math.PI * 200.0;
+        }
+
+        private static AnyValue Abs(double number)
+        {
+            return Math.Abs(number);
         }
 
         private static object Acos(List<Expression> p)
         {
             double input = p[0];
             if (Math.Abs(input) > 1)
-                throw new NumberException();
+                return XLError.NumberInvalid;
 
             return Math.Acos(p[0]);
+        }
+
+        private static object Acosh(List<Expression> p)
+        {
+            double number = p[0];
+            if (number < 1)
+                return XLError.NumberInvalid;
+
+            return XLMath.ACosh(p[0]);
+        }
+
+        private static object Acot(List<Expression> p)
+        {
+            double x = Math.Atan(1.0 / p[0]);
+
+            // Acot in Excel calculates the modulus of the function above.
+            // as the % operator is not the modulus, but the remainder, we have to calculate the modulus by hand:
+            while (x < 0)
+                x += Math.PI;
+
+            return x;
+        }
+
+        private static object Acoth(List<Expression> p)
+        {
+            double number = p[0];
+            if (Math.Abs(number) < 1)
+                return XLError.NumberInvalid;
+
+            return 0.5 * Math.Log((number + 1) / (number - 1));
+        }
+
+        private static object Arabic(List<Expression> p)
+        {
+            string input = ((string)p[0]).Trim();
+
+            try
+            {
+                if (input.Length == 0)
+                    return 0;
+                if (input == "-")
+                    return XLError.NumberInvalid;
+                else if (input[0] == '-')
+                    return -XLMath.RomanToArabic(input.Substring(1));
+                else
+                    return XLMath.RomanToArabic(input);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return XLError.IncompatibleValue;
+            }
         }
 
         private static object Asin(List<Expression> p)
         {
             double input = p[0];
             if (Math.Abs(input) > 1)
-                throw new NumberException();
+                return XLError.NumberInvalid;
 
             return Math.Asin(input);
+        }
+
+        private static object Asinh(List<Expression> p)
+        {
+            return XLMath.ASinh(p[0]);
         }
 
         private static object Atan(List<Expression> p)
@@ -123,9 +221,51 @@ namespace ClosedXML.Excel.CalcEngine
             double x = p[0];
             double y = p[1];
             if (x == 0 && y == 0)
-                throw new DivisionByZeroException();
+                return XLError.DivisionByZero;
 
             return Math.Atan2(y, x);
+        }
+
+        private static object Atanh(List<Expression> p)
+        {
+            double input = p[0];
+            if (Math.Abs(input) >= 1)
+                return XLError.NumberInvalid;
+
+            return XLMath.ATanh(p[0]);
+        }
+
+        private static object Base(List<Expression> p)
+        {
+            long number;
+            int radix;
+            int minLength = 0;
+
+            var rawNumber = p[0].Evaluate();
+            if (rawNumber is long || rawNumber is int || rawNumber is byte || rawNumber is double || rawNumber is float)
+                number = Convert.ToInt64(rawNumber);
+            else
+                return XLError.IncompatibleValue;
+
+            var rawRadix = p[1].Evaluate();
+            if (rawRadix is long || rawRadix is int || rawRadix is byte || rawRadix is double || rawRadix is float)
+                radix = Convert.ToInt32(rawRadix);
+            else
+                return XLError.IncompatibleValue;
+
+            if (p.Count > 2)
+            {
+                var rawMinLength = p[2].Evaluate();
+                if (rawMinLength is long || rawMinLength is int || rawMinLength is byte || rawMinLength is double || rawMinLength is float)
+                    minLength = Convert.ToInt32(rawMinLength);
+                else
+                    return XLError.IncompatibleValue;
+            }
+
+            if (number < 0 || radix < 2 || radix > 36)
+                return XLError.NumberInvalid;
+
+            return XLMath.ChangeBase(number, radix).PadLeft(minLength, '0');
         }
 
         private static object Ceiling(List<Expression> p)
@@ -136,7 +276,7 @@ namespace ClosedXML.Excel.CalcEngine
             if (significance == 0)
                 return 0d;
             else if (significance < 0 && number > 0)
-                throw new NumberException();
+                return XLError.NumberInvalid;
             else if (significance < 0)
                 return -Math.Ceiling(-number / -significance) * -significance;
             else
@@ -162,6 +302,33 @@ namespace ClosedXML.Excel.CalcEngine
                 return -Math.Ceiling(-number / Math.Abs(significance)) * Math.Abs(significance);
         }
 
+        private static AnyValue Combin(double number, double numberChosen)
+        {
+            var combinationsResult = XLMath.CombinChecked(number, numberChosen);
+            if (!combinationsResult.TryPickT0(out var combinations, out var error))
+                return error;
+
+            return combinations;
+        }
+
+        private static object CombinA(List<Expression> p)
+        {
+            Int32 number = (int)p[0]; // casting truncates towards 0 as specified
+            Int32 chosen = (int)p[1];
+
+            if (number < 0 || number < chosen)
+                return XLError.NumberInvalid;
+            if (chosen < 0)
+                return XLError.NumberInvalid;
+
+            int n = number + chosen - 1;
+            int k = number - 1;
+
+            return n == k || k == 0
+                ? 1
+                : (long)XLMath.Combin(n, k);
+        }
+
         private static object Cos(List<Expression> p)
         {
             return Math.Cos(p[0]);
@@ -174,10 +341,10 @@ namespace ClosedXML.Excel.CalcEngine
 
         private static object Cot(List<Expression> p)
         {
-            var tan = (double)Math.Tan(p[0]);
+            var tan = Math.Tan(p[0]);
 
             if (tan == 0)
-                throw new DivisionByZeroException();
+                return XLError.DivisionByZero;
 
             return 1 / tan;
         }
@@ -186,7 +353,7 @@ namespace ClosedXML.Excel.CalcEngine
         {
             double input = p[0];
             if (input == 0)
-                throw new DivisionByZeroException();
+                return XLError.DivisionByZero;
 
             return 1 / Math.Tanh(input);
         }
@@ -195,7 +362,7 @@ namespace ClosedXML.Excel.CalcEngine
         {
             double input = p[0];
             if (input == 0)
-                throw new DivisionByZeroException();
+                return XLError.DivisionByZero;
 
             return 1 / Math.Sin(input);
         }
@@ -203,7 +370,7 @@ namespace ClosedXML.Excel.CalcEngine
         private static object Csch(List<Expression> p)
         {
             if (Math.Abs((double)p[0].Evaluate()) < Double.Epsilon)
-                throw new DivisionByZeroException();
+                return XLError.DivisionByZero;
 
             return 1 / Math.Sinh(p[0]);
         }
@@ -214,7 +381,7 @@ namespace ClosedXML.Excel.CalcEngine
             double radix = p[1];
 
             if (radix < 2 || radix > 36)
-                throw new NumberException();
+                return XLError.NumberInvalid;
 
             var asciiValues = Encoding.ASCII.GetBytes(source.ToUpperInvariant());
 
@@ -225,7 +392,7 @@ namespace ClosedXML.Excel.CalcEngine
             {
                 if (digit > 90)
                 {
-                    throw new NumberException();
+                    return XLError.NumberInvalid;
                 }
 
                 int digitNumber = digit >= 48 && digit < 58
@@ -233,7 +400,7 @@ namespace ClosedXML.Excel.CalcEngine
                     : digit - 55;
 
                 if (digitNumber > radix - 1)
-                    throw new NumberException();
+                    return XLError.NumberInvalid;
 
                 result = result * radix + digitNumber;
                 i++;
@@ -242,9 +409,51 @@ namespace ClosedXML.Excel.CalcEngine
             return result;
         }
 
+        private static object Degrees(List<Expression> p)
+        {
+            return p[0] * (180.0 / Math.PI);
+        }
+
+        private static object Even(List<Expression> p)
+        {
+            var num = (int)Math.Ceiling(p[0]);
+            var addValue = num >= 0 ? 1 : -1;
+            return XLMath.IsEven(num) ? num : num + addValue;
+        }
+
         private static object Exp(List<Expression> p)
         {
             return Math.Exp(p[0]);
+        }
+
+        private static AnyValue Fact(double n)
+        {
+            if (n is < 0 or >= 171)
+                return XLError.NumberInvalid;
+
+            return XLMath.Factorial((int)Math.Floor(n));
+        }
+
+        private static object FactDouble(List<Expression> p)
+        {
+            var input = p[0].Evaluate();
+
+            if (!(input is long || input is int || input is byte || input is double || input is float))
+                return XLError.IncompatibleValue;
+
+            var num = Math.Floor(p[0]);
+            double fact = 1.0;
+
+            if (num < -1)
+                return XLError.NumberInvalid;
+
+            if (num > 1)
+            {
+                var start = Math.Abs(num % 2) < XLHelper.Epsilon ? 2 : 1;
+                for (int i = start; i <= num; i += 2)
+                    fact *= i;
+            }
+            return fact;
         }
 
         private static object Floor(List<Expression> p)
@@ -253,9 +462,9 @@ namespace ClosedXML.Excel.CalcEngine
             double significance = p[1];
 
             if (significance == 0)
-                throw new DivisionByZeroException();
+                return XLError.DivisionByZero;
             else if (significance < 0 && number > 0)
-                throw new NumberException();
+                return XLError.NumberInvalid;
             else if (significance < 0)
                 return -Math.Floor(-number / -significance) * -significance;
             else
@@ -281,9 +490,56 @@ namespace ClosedXML.Excel.CalcEngine
                 return -Math.Floor(-number / Math.Abs(significance)) * Math.Abs(significance);
         }
 
+        private static object Gcd(List<Expression> p)
+        {
+            return p.Select(v => (int)v).Aggregate(Gcd);
+        }
+
+        private static int Gcd(int a, int b)
+        {
+            return b == 0 ? a : Gcd(b, a % b);
+        }
+
+        private static double[,] GetArray(Expression expression)
+        {
+            if (expression is XObjectExpression objectExpression
+                && objectExpression.Value is CellRangeReference cellRangeReference)
+            {
+                var range = cellRangeReference.Range;
+                var rowCount = range.RowCount();
+                var columnCount = range.ColumnCount();
+                var arr = new double[rowCount, columnCount];
+
+                for (int row = 0; row < rowCount; row++)
+                {
+                    for (int column = 0; column < columnCount; column++)
+                    {
+                        arr[row, column] = range.Cell(row + 1, column + 1).GetDouble();
+                    }
+                }
+
+                return arr;
+            }
+            else
+            {
+                return new[,] { { (double)expression } };
+            }
+        }
+
         private static object Int(List<Expression> p)
         {
             return Math.Floor(p[0]);
+        }
+
+        private static object Lcm(List<Expression> p)
+        {
+            return p.Select(v => (int)v).Aggregate(Lcm);
+        }
+
+        private static int Lcm(int a, int b)
+        {
+            if (a == 0 || b == 0) return 0;
+            return a * (b / Gcd(a, b));
         }
 
         private static object Ln(List<Expression> p)
@@ -302,455 +558,52 @@ namespace ClosedXML.Excel.CalcEngine
             return Math.Log10(p[0]);
         }
 
-        private static object Pi(List<Expression> p)
+        private static object MDeterm(List<Expression> p)
         {
-            return Math.PI;
+            var arr = GetArray(p[0]);
+            var m = new XLMatrix(arr);
+
+            return m.Determinant();
         }
 
-        private static object Power(List<Expression> p)
+        private static object MInverse(List<Expression> p)
         {
-            return Math.Pow(p[0], p[1]);
+            var arr = GetArray(p[0]);
+            var m = new XLMatrix(arr);
+
+            return m.Invert().mat;
         }
 
-        private static object Rand(List<Expression> p)
+        private static object MMult(List<Expression> p)
         {
-            return _rnd.NextDouble();
-        }
-
-        private static object RandBetween(List<Expression> p)
-        {
-            return _rnd.Next((int)(double)p[0], (int)(double)p[1]);
-        }
-
-        private static object Sign(List<Expression> p)
-        {
-            return Math.Sign(p[0]);
-        }
-
-        private static object Sin(List<Expression> p)
-        {
-            return Math.Sin(p[0]);
-        }
-
-        private static object Sinh(List<Expression> p)
-        {
-            return Math.Sinh(p[0]);
-        }
-
-        private static object Sqrt(List<Expression> p)
-        {
-            return Math.Sqrt(p[0]);
-        }
-
-        private static object Sum(List<Expression> p)
-        {
-            var tally = new Tally();
-            foreach (var e in p)
-            {
-                tally.Add(e);
-            }
-            return tally.Sum();
-        }
-
-        private static object SumIf(List<Expression> p)
-        {
-            // get parameters
-            var range = p[0] as IEnumerable;                            // range of values to match the criteria against
-            var sumRange = p.Count < 3 ?
-                p[0] as XObjectExpression :
-                p[2] as XObjectExpression;   // range of values to sum up
-            var criteria = p[1].Evaluate();                             // the criteria to evaluate
-
-            var rangeValues = range.Cast<object>().ToList();
-            var sumRangeValues = sumRange.Cast<object>().ToList();
-
-            // compute total
-            var ce = new CalcEngine();
-            var tally = new Tally();
-            for (var i = 0; i < Math.Max(rangeValues.Count, sumRangeValues.Count); i++)
-            {
-                var targetValue = i < rangeValues.Count ? rangeValues[i] : string.Empty;
-                if (CalcEngineHelpers.ValueSatisfiesCriteria(targetValue, criteria, ce))
-                {
-                    var value = i < sumRangeValues.Count ? sumRangeValues[i] : 0d;
-                    tally.AddValue(value);
-                }
-            }
-
-            // done
-            return tally.Sum();
-        }
-
-        private static object SumIfs(List<Expression> p)
-        {
-            // get parameters
-            var sumRange = p[0] as IEnumerable;
-
-            var sumRangeValues = new List<object>();
-            foreach (var value in sumRange)
-            {
-                sumRangeValues.Add(value);
-            }
-
-            var ce = new CalcEngine();
-            var tally = new Tally();
-
-            int numberOfCriteria = p.Count / 2; // int division returns floor() automatically, that's what we want.
-
-            // prepare criteria-parameters:
-            var criteriaRanges = new Tuple<object, IList<object>>[numberOfCriteria];
-            for (int criteriaPair = 0; criteriaPair < numberOfCriteria; criteriaPair++)
-            {
-                var criteriaRange = p[criteriaPair * 2 + 1] as IEnumerable;
-
-                if (criteriaRange == null)
-                    throw new CellReferenceException($"Expected parameter {criteriaPair * 2 + 2} to be a range");
-
-                var criterion = p[criteriaPair * 2 + 2].Evaluate();
-                var criteriaRangeValues = criteriaRange.Cast<Object>().ToList();
-
-                criteriaRanges[criteriaPair] = new Tuple<object, IList<object>>(
-                    criterion,
-                    criteriaRangeValues);
-            }
-
-            for (var i = 0; i < sumRangeValues.Count; i++)
-            {
-                bool shouldUseValue = true;
-
-                foreach (var criteriaPair in criteriaRanges)
-                {
-                    if (!CalcEngineHelpers.ValueSatisfiesCriteria(
-                        i < criteriaPair.Item2.Count ? criteriaPair.Item2[i] : string.Empty,
-                        criteriaPair.Item1,
-                        ce))
-                    {
-                        shouldUseValue = false;
-                        break; // we're done with the inner loop as we can't ever get true again.
-                    }
-                }
-
-                if (shouldUseValue)
-                    tally.AddValue(sumRangeValues[i]);
-            }
-
-            // done
-            return tally.Sum();
-        }
-
-        private static object SumProduct(List<Expression> p)
-        {
-            // all parameters should be IEnumerable
-            if (p.Any(param => !(param is IEnumerable)))
-                throw new NoValueAvailableException();
-
-            var counts = p.Cast<IEnumerable>().Select(param =>
-            {
-                int i = 0;
-                foreach (var item in param)
-                    i++;
-                return i;
-            })
-            .Distinct();
-
-            // All parameters should have the same length
-            if (counts.Count() > 1)
-                throw new NoValueAvailableException();
-
-            var values = p
-                .Cast<IEnumerable>()
-                .Select(range =>
-                {
-                    var results = new List<double>();
-                    foreach (var c in range)
-                    {
-                        if (c.IsNumber())
-                            results.Add(c.CastTo<double>());
-                        else
-                            results.Add(0.0);
-                    }
-                    return results;
-                })
-                .ToArray();
-
-            return Enumerable.Range(0, counts.Single())
-                .Aggregate(0d, (t, i) =>
-                    t + values.Aggregate(1d,
-                        (product, list) => product * list[i]
-                    )
-                );
-        }
-
-        private static object Tan(List<Expression> p)
-        {
-            return Math.Tan(p[0]);
-        }
-
-        private static object Tanh(List<Expression> p)
-        {
-            return Math.Tanh(p[0]);
-        }
-
-        private static object Trunc(List<Expression> p)
-        {
-            var number = (double)p[0];
-
-            var num_digits = 0d;
-            if (p.Count > 1)
-                num_digits = (double)p[1];
-
-            var scaling = Math.Pow(10, num_digits);
-
-            var truncated = (int)(number * scaling);
-            return (double)truncated / scaling;
-        }
-
-        public static double DegreesToRadians(double degrees)
-        {
-            return (Math.PI / 180.0) * degrees;
-        }
-
-        public static double RadiansToDegrees(double radians)
-        {
-            return (180.0 / Math.PI) * radians;
-        }
-
-        public static double GradsToRadians(double grads)
-        {
-            return (grads / 200.0) * Math.PI;
-        }
-
-        public static double RadiansToGrads(double radians)
-        {
-            return (radians / Math.PI) * 200.0;
-        }
-
-        public static double DegreesToGrads(double degrees)
-        {
-            return (degrees / 9.0) * 10.0;
-        }
-
-        public static double GradsToDegrees(double grads)
-        {
-            return (grads / 10.0) * 9.0;
-        }
-
-        public static double ASinh(double x)
-        {
-            return (Math.Log(x + Math.Sqrt(x * x + 1.0)));
-        }
-
-        private static object Acosh(List<Expression> p)
-        {
-            double number = p[0];
-            if (number < 1)
-                throw new NumberException();
-
-            return XLMath.ACosh(p[0]);
-        }
-
-        private static object Acot(List<Expression> p)
-        {
-            double x = Math.Atan(1.0 / p[0]);
-
-            // Acot in Excel calculates the modulus of the function above.
-            // as the % operator is not the modulus, but the remainder, we have to calculate the modulus by hand:
-            while (x < 0)
-                x = x + Math.PI;
-
-            return x;
-        }
-
-        private static object Acoth(List<Expression> p)
-        {
-            double number = p[0];
-            if (Math.Abs(number) < 1)
-                throw new NumberException();
-
-            return 0.5 * Math.Log((number + 1) / (number - 1));
-        }
-
-        private static object Arabic(List<Expression> p)
-        {
-            string input = ((string)p[0]).Trim();
+            Double[,] A, B;
 
             try
             {
-                if (input.Length == 0)
-                    return 0;
-                if (input == "-")
-                    throw new NumberException();
-                else if (input[0] == '-')
-                    return -XLMath.RomanToArabic(input.Substring(1));
-                else
-                    return XLMath.RomanToArabic(input);
+                A = GetArray(p[0]);
+                B = GetArray(p[1]);
             }
-            catch (ArgumentOutOfRangeException)
+            catch (InvalidCastException)
             {
-                throw new CellValueException();
+                return XLError.IncompatibleValue;
             }
-            catch
+
+            if (A.GetLength(1) != B.GetLength(0))
+                return XLError.IncompatibleValue;
+
+            var C = new double[A.GetLength(0), B.GetLength(1)];
+            for (int i = 0; i < A.GetLength(0); i++)
             {
-                throw;
-            }
-        }
-
-        private static object Asinh(List<Expression> p)
-        {
-            return XLMath.ASinh(p[0]);
-        }
-
-        private static object Atanh(List<Expression> p)
-        {
-            double input = p[0];
-            if (Math.Abs(input) >= 1)
-                throw new NumberException();
-
-            return XLMath.ATanh(p[0]);
-        }
-
-        private static object Base(List<Expression> p)
-        {
-            long number;
-            int radix;
-            int minLength = 0;
-
-            var rawNumber = p[0].Evaluate();
-            if (rawNumber is long || rawNumber is int || rawNumber is byte || rawNumber is double || rawNumber is float)
-                number = Convert.ToInt64(rawNumber);
-            else
-                throw new CellValueException();
-
-            var rawRadix = p[1].Evaluate();
-            if (rawRadix is long || rawRadix is int || rawRadix is byte || rawRadix is double || rawRadix is float)
-                radix = Convert.ToInt32(rawRadix);
-            else
-                throw new CellValueException();
-
-            if (p.Count > 2)
-            {
-                var rawMinLength = p[2].Evaluate();
-                if (rawMinLength is long || rawMinLength is int || rawMinLength is byte || rawMinLength is double || rawMinLength is float)
-                    minLength = Convert.ToInt32(rawMinLength);
-                else
-                    throw new CellValueException();
+                for (int j = 0; j < B.GetLength(1); j++)
+                {
+                    for (int k = 0; k < A.GetLength(1); k++)
+                    {
+                        C[i, j] += A[i, k] * B[k, j];
+                    }
+                }
             }
 
-            if (number < 0 || radix < 2 || radix > 36)
-                throw new NumberException();
-
-            return XLMath.ChangeBase(number, radix).PadLeft(minLength, '0');
-        }
-
-        private static object Combin(List<Expression> p)
-        {
-            Int32 n;
-            Int32 k;
-
-            var rawN = p[0].Evaluate();
-            var rawK = p[1].Evaluate();
-            if (rawN is long || rawN is int || rawN is byte || rawN is double || rawN is float)
-                n = (int)Math.Floor((double)rawN);
-            else
-                throw new NumberException();
-
-            if (rawK is long || rawK is int || rawK is byte || rawK is double || rawK is float)
-                k = (int)Math.Floor((double)rawK);
-            else
-                throw new NumberException();
-
-            n = (int)p[0];
-            k = (int)p[1];
-
-            if (n < 0 || n < k || k < 0)
-                throw new NumberException();
-
-            return XLMath.Combin(n, k);
-        }
-
-        private static object CombinA(List<Expression> p)
-        {
-            Int32 number = (int)p[0]; // casting truncates towards 0 as specified
-            Int32 chosen = (int)p[1];
-
-            if (number < 0 || number < chosen)
-                throw new NumberException();
-            if (chosen < 0)
-                throw new NumberException();
-
-            int n = number + chosen - 1;
-            int k = number - 1;
-
-            return n == k || k == 0
-                ? 1
-                : (long)XLMath.Combin(n, k);
-        }
-
-        private static object Degrees(List<Expression> p)
-        {
-            return p[0] * (180.0 / Math.PI);
-        }
-
-        private static object Fact(List<Expression> p)
-        {
-            var input = p[0].Evaluate();
-
-            if (!(input is long || input is int || input is byte || input is double || input is float))
-                throw new CellValueException();
-
-            var num = Math.Floor((double)input);
-            double fact = 1.0;
-
-            if (num < 0)
-                throw new NumberException();
-
-            if (num > 1)
-                for (int i = 2; i <= num; i++)
-                    fact *= i;
-            return fact;
-        }
-
-        private static object FactDouble(List<Expression> p)
-        {
-            var input = p[0].Evaluate();
-
-            if (!(input is long || input is int || input is byte || input is double || input is float))
-                throw new CellValueException();
-
-            var num = Math.Floor(p[0]);
-            double fact = 1.0;
-
-            if (num < -1)
-                throw new NumberException();
-
-            if (num > 1)
-            {
-                var start = Math.Abs(num % 2) < XLHelper.Epsilon ? 2 : 1;
-                for (int i = start; i <= num; i = i + 2)
-                    fact *= i;
-            }
-            return fact;
-        }
-
-        private static object Gcd(List<Expression> p)
-        {
-            return p.Select(v => (int)v).Aggregate(Gcd);
-        }
-
-        private static int Gcd(int a, int b)
-        {
-            return b == 0 ? a : Gcd(b, a % b);
-        }
-
-        private static object Lcm(List<Expression> p)
-        {
-            return p.Select(v => (int)v).Aggregate(Lcm);
-        }
-
-        private static int Lcm(int a, int b)
-        {
-            if (a == 0 || b == 0) return 0;
-            return a * (b / Gcd(a, b));
+            return C;
         }
 
         private static object Mod(List<Expression> p)
@@ -763,36 +616,42 @@ namespace ClosedXML.Excel.CalcEngine
 
         private static object MRound(List<Expression> p)
         {
-            var n = (Decimal)(Double)p[0];
-            var k = (Decimal)(Double)p[1];
+            var number = (Double)p[0];
+            var multiple = (Double)p[1];
 
-            var mod = n % k;
-            var mult = Math.Floor(n / k);
-            var div = k / 2;
+            if (Math.Sign(number) != Math.Sign(multiple))
+                return XLError.NumberInvalid;
 
-            if (Math.Abs(mod - div) <= (Decimal)XLHelper.Epsilon) return (k * mult) + k;
-
-            return k * mult;
+            return Math.Round(number / multiple, MidpointRounding.AwayFromZero) * multiple;
         }
 
         private static object Multinomial(List<Expression> p)
         {
-            return Multinomial(p.Select(v => (double)v).ToList());
+            return Multinomial(p.ConvertAll(v => (double)v));
         }
 
         private static double Multinomial(List<double> numbers)
         {
             double numbersSum = 0;
             foreach (var number in numbers)
+            {
                 numbersSum += number;
+            }
 
             double maxNumber = numbers.Max();
             var denomFactorPowers = new double[(uint)numbers.Max() + 1];
             foreach (var number in numbers)
+            {
                 for (int i = 2; i <= number; i++)
+                {
                     denomFactorPowers[i]++;
+                }
+            }
+
             for (int i = 2; i < denomFactorPowers.Length; i++)
-                denomFactorPowers[i]--; // reduce with nominator;
+            {
+                denomFactorPowers[i]--; // reduce with nominator
+            }
 
             int currentFactor = 2;
             double currentPower = 1;
@@ -826,11 +685,14 @@ namespace ClosedXML.Excel.CalcEngine
             return XLMath.IsOdd(num) ? num : num + addValue;
         }
 
-        private static object Even(List<Expression> p)
+        private static object Pi(List<Expression> p)
         {
-            var num = (int)Math.Ceiling(p[0]);
-            var addValue = num >= 0 ? 1 : -1;
-            return XLMath.IsEven(num) ? num : num + addValue;
+            return Math.PI;
+        }
+
+        private static object Power(List<Expression> p)
+        {
+            return Math.Pow(p[0], p[1]);
         }
 
         private static object Product(List<Expression> p)
@@ -854,12 +716,24 @@ namespace ClosedXML.Excel.CalcEngine
             return p[0] * Math.PI / 180.0;
         }
 
+        private static object Rand(List<Expression> p)
+        {
+            return _rnd.NextDouble();
+        }
+
+        private static object RandBetween(List<Expression> p)
+        {
+            return _rnd.Next((int)(double)p[0], (int)(double)p[1]);
+        }
+
         private static object Roman(List<Expression> p)
         {
             if (p.Count == 1
-                || (Boolean.TryParse(p[1]._token.Value.ToString(), out bool boolTemp) && boolTemp)
-                || (Int32.TryParse(p[1]._token.Value.ToString(), out int intTemp) && intTemp == 1))
+                || (Boolean.TryParse((string)p[1], out bool boolTemp) && boolTemp)
+                || (Int32.TryParse((string)p[1], out int intTemp) && intTemp == 1))
+            {
                 return XLMath.ToRoman((int)p[0]);
+            }
 
             throw new ArgumentException("Can only support classic roman types.");
         }
@@ -908,7 +782,7 @@ namespace ClosedXML.Excel.CalcEngine
             if (double.TryParse(p[0], out double number))
                 return 1.0 / Math.Cos(number);
             else
-                throw new CellValueException();
+                return XLError.IncompatibleValue;
         }
 
         private static object Sech(List<Expression> p)
@@ -921,20 +795,42 @@ namespace ClosedXML.Excel.CalcEngine
             var x = (Double)p[0];
             var n = (Double)p[1];
             var m = (Double)p[2];
-            var obj = p[3] as XObjectExpression;
-
-            if (obj == null)
-                return p[3] * Math.Pow(x, n);
-
-            Double total = 0;
-            Int32 i = 0;
-            foreach (var e in obj)
+            if (p[3] is XObjectExpression obj)
             {
-                total += (double)e * Math.Pow(x, n + i * m);
-                i++;
-            }
+                Double total = 0;
+                Int32 i = 0;
+                foreach (var e in obj)
+                {
+                    total += (double)e * Math.Pow(x, n + i * m);
+                    i++;
+                }
 
-            return total;
+                return total;
+            }
+            else
+            {
+                return p[3] * Math.Pow(x, n);
+            }
+        }
+
+        private static object Sign(List<Expression> p)
+        {
+            return Math.Sign(p[0]);
+        }
+
+        private static object Sin(List<Expression> p)
+        {
+            return Math.Sin(p[0]);
+        }
+
+        private static object Sinh(List<Expression> p)
+        {
+            return Math.Sinh(p[0]);
+        }
+
+        private static object Sqrt(List<Expression> p)
+        {
+            return Math.Sqrt(p[0]);
         }
 
         private static object SqrtPi(List<Expression> p)
@@ -943,90 +839,236 @@ namespace ClosedXML.Excel.CalcEngine
             return Math.Sqrt(Math.PI * num);
         }
 
-        private static object Subtotal(List<Expression> p)
+        private static AnyValue Subtotal(CalcContext ctx, double number, List<Reference> p)
         {
-            // Skip cells that already evaluate a SUBTOTAL
-            bool hasSubtotalInFormula(Expression e)
+            var cellsWithoutSubtotal = p.SelectMany(reference => ctx.GetNonBlankCells(reference))
+                .Where(cell =>
+                {
+                    if (!cell.HasFormula)
+                        return true;
+
+                    return !ctx.CalcEngine.Parse(cell.FormulaA1).Flags.HasFlag(FormulaFlags.HasSubtotal);
+                })
+                .Select(cell => new Expression(cell.Value));
+
+            var fId = (int)number;
+            var tally = new Tally(cellsWithoutSubtotal);
+
+            return fId switch
             {
-                if (e is FunctionExpression fe && (fe.FunctionDefinition.Function.Method.Name == nameof(Subtotal) || fe.Parameters.Any(fp => hasSubtotalInFormula(fp))))
-                    return true;
-
-                if (e is BinaryExpression be)
-                    return hasSubtotalInFormula(be.LeftExpression) || hasSubtotalInFormula(be.RightExpression);
-
-                if (e is UnaryExpression ue)
-                    return hasSubtotalInFormula(ue.Expression);
-
-                return false;
+                1 => tally.Average(),
+                2 => tally.Count(true),
+                3 => tally.Count(false),
+                4 => tally.Max(),
+                5 => tally.Min(),
+                6 => tally.Product(),
+                7 => tally.Std(),
+                8 => tally.StdP(),
+                9 => tally.Sum(),
+                10 => tally.Var(),
+                11 => tally.VarP(),
+                _ => throw new ArgumentException("Function not supported."),
             };
+        }
 
-            IEnumerable<Expression> extractExpressionsWithoutSubtotal(CellRangeReference crr)
+        private static AnyValue Sum(CalcContext ctx, Span<AnyValue> args)
+        {
+            var sum = 0.0;
+            foreach (var arg in args)
             {
-                var ce = crr.CalcEngine as XLCalcEngine;
+                if (arg.TryPickScalar(out var scalar, out var collection))
+                {
+                    var conversionResult = scalar.ToNumber(ctx.Culture);
+                    if (!conversionResult.TryPickT0(out var number, out var error))
+                        return error;
 
-                return crr.Range
-                    .CellsUsed()
-                    .Where(c =>
+                    sum += number;
+                }
+                else
+                {
+                    var valuesIterator = collection.TryPickT0(out var array, out var reference)
+                        ? array
+                        : reference.GetCellsValues(ctx);
+                    foreach (var value in valuesIterator)
                     {
-                        if (c.HasFormula)
-                        {
-                            var expression = ce.ExpressionCache[c.FormulaA1];
-                            return !hasSubtotalInFormula(expression);
-                        }
-                        else
-                            return true;
-                    })
-                    .Select(c => new XObjectExpression(new CellRangeReference(c.AsRange(), (XLCalcEngine)crr.CalcEngine)) as Expression);
-            };
+                        // collections ignore strings and logical, only numbers (and errors) allowed
+                        if (value.TryPickNumber(out var number))
+                            sum += number;
+                        else if (value.TryPickError(out var error))
+                            return error;
+                    }
+                }
+            }
 
-            var expressions = p.Skip(1)
-                .SelectMany(e =>
-                    e is XObjectExpression xoe && xoe.Value is CellRangeReference crr
-                        ? extractExpressionsWithoutSubtotal(crr)
-                        : new[] { e })
+            return sum;
+        }
+
+        private static object SumIf(List<Expression> p)
+        {
+            // get parameters
+            if (!CalcEngineHelpers.TryExtractRange(p[0], out var range, out var calculationErrorType))
+            {
+                return calculationErrorType;
+            }
+
+            // range of values to match the criteria against
+            // limit to first column only
+            var rangeColumn = new CellRangeReference(range!.Column(1).AsRange()) as IEnumerable;
+
+            // range of values to sum up
+            var sumRange = p.Count < 3 ?
+                p[0] as XObjectExpression :
+                p[2] as XObjectExpression;
+
+            // the criteria to evaluate
+            var criteria = p[1].Evaluate();
+
+            var rangeValues = rangeColumn.Cast<object>().ToList();
+            using var sumRangeEnumerator = sumRange.Cast<object>().GetEnumerator();
+
+            // compute total
+            var ce = new XLCalcEngine(CultureInfo.CurrentCulture);
+            var tally = new Tally();
+            for (var i = 0; i < rangeValues.Count; i++)
+            {
+                // TODO: Replace this mess completely
+                var targetValue = rangeValues[i];
+                if (CalcEngineHelpers.ValueSatisfiesCriteria(targetValue, criteria, ce))
+                {
+                    if (!sumRangeEnumerator.MoveNext())
+                        break;
+                    var value = sumRangeEnumerator.Current!;
+                    tally.AddValue(value);
+                }
+                else
+                {
+                    try
+                    {
+                        if (!sumRangeEnumerator.MoveNext())
+                            break;
+                    }
+                    catch (GettingDataException)
+                    {
+                        // The referenced cell uses a dirty formula, but we are not using the value, so eat the exception.
+                    }
+                }
+            }
+
+            // done
+            return tally.Sum();
+        }
+
+        private static object SumIfs(List<Expression> p)
+        {
+            // get parameters
+            var sumRange = (IEnumerable)p[0];
+            var sumRangeDimensions = CalcEngineHelpers.GetRangeDimensions(p[0] as XObjectExpression);
+
+            var sumRangeValues = new List<object>();
+            foreach (var value in sumRange)
+            {
+                sumRangeValues.Add(value);
+            }
+
+            var ce = new XLCalcEngine(CultureInfo.CurrentCulture);
+            var tally = new Tally();
+
+            int numberOfCriteria = p.Count / 2; // int division returns floor() automatically, that's what we want.
+
+            for (int criteriaPair = 0; criteriaPair < numberOfCriteria; criteriaPair++)
+            {
+                var criterionDimensions = CalcEngineHelpers.GetRangeDimensions(p[criteriaPair * 2 + 1] as XObjectExpression);
+                if (criterionDimensions != sumRangeDimensions)
+                {
+                    return XLError.IncompatibleValue;
+                }
+            }
+
+            // prepare criteria-parameters:
+            var criteriaRanges = new Tuple<object, IList<object>>[numberOfCriteria];
+            for (int criteriaPair = 0; criteriaPair < numberOfCriteria; criteriaPair++)
+            {
+                if (p[criteriaPair * 2 + 1] is IEnumerable criteriaRange)
+                {
+                    var criterion = p[criteriaPair * 2 + 2].Evaluate();
+                    var criteriaRangeValues = criteriaRange.Cast<Object>().ToList();
+
+                    criteriaRanges[criteriaPair] = new Tuple<object, IList<object>>(
+                        criterion,
+                        criteriaRangeValues);
+                }
+                else
+                {
+                    return XLError.CellReference;
+                }
+            }
+
+            for (var i = 0; i < sumRangeValues.Count; i++)
+            {
+                bool shouldUseValue = true;
+
+                foreach (var criteriaPair in criteriaRanges)
+                {
+                    if (!CalcEngineHelpers.ValueSatisfiesCriteria(
+                        i < criteriaPair.Item2.Count ? criteriaPair.Item2[i] : string.Empty,
+                        criteriaPair.Item1,
+                        ce))
+                    {
+                        shouldUseValue = false;
+                        break; // we're done with the inner loop as we can't ever get true again.
+                    }
+                }
+
+                if (shouldUseValue)
+                    tally.AddValue(sumRangeValues[i]);
+            }
+
+            // done
+            return tally.Sum();
+        }
+
+        private static object SumProduct(List<Expression> p)
+        {
+            // all parameters should be IEnumerable
+            if (p.Any(param => !(param is IEnumerable)))
+                return XLError.NoValueAvailable;
+
+            var counts = p.Cast<IEnumerable>().Select(param =>
+            {
+                int i = 0;
+                foreach (var item in param)
+                    i++;
+                return i;
+            })
+            .Distinct()
+            .ToArray();
+
+            // All parameters should have the same length
+            if (counts.Length > 1)
+                return XLError.NoValueAvailable;
+
+            var values = p
+                .Cast<IEnumerable>()
+                .Select(range =>
+                {
+                    var results = new List<double>();
+                    foreach (var c in range)
+                    {
+                        if (c.IsNumber())
+                            results.Add(c.CastTo<double>());
+                        else
+                            results.Add(0.0);
+                    }
+                    return results;
+                })
                 .ToArray();
 
-            var fId = (int)(Double)p[0];
-            var tally = new Tally(expressions);
-
-            switch (fId)
-            {
-                case 1:
-                    return tally.Average();
-
-                case 2:
-                    return tally.Count(true);
-
-                case 3:
-                    return tally.Count(false);
-
-                case 4:
-                    return tally.Max();
-
-                case 5:
-                    return tally.Min();
-
-                case 6:
-                    return tally.Product();
-
-                case 7:
-                    return tally.Std();
-
-                case 8:
-                    return tally.StdP();
-
-                case 9:
-                    return tally.Sum();
-
-                case 10:
-                    return tally.Var();
-
-                case 11:
-                    return tally.VarP();
-
-                default:
-                    throw new ArgumentException("Function not supported.");
-            }
+            return Enumerable.Range(0, counts.Single())
+                .Aggregate(0d, (t, i) =>
+                    t + values.Aggregate(1d,
+                        (product, list) => product * list[i]
+                    )
+                );
         }
 
         private static object SumSq(List<Expression> p)
@@ -1035,64 +1077,28 @@ namespace ClosedXML.Excel.CalcEngine
             return t.NumericValues().Sum(v => Math.Pow(v, 2));
         }
 
-        private static object MMult(List<Expression> p)
+        private static object Tan(List<Expression> p)
         {
-            Double[,] A = GetArray(p[0]);
-            Double[,] B = GetArray(p[1]);
-
-            if (A.GetLength(0) != B.GetLength(0) || A.GetLength(1) != B.GetLength(1))
-                throw new ArgumentException("Ranges must have the same number of rows and columns.");
-
-            var C = new double[A.GetLength(0), A.GetLength(1)];
-            for (int i = 0; i < A.GetLength(0); i++)
-            {
-                for (int j = 0; j < B.GetLength(1); j++)
-                {
-                    for (int k = 0; k < A.GetLength(1); k++)
-                    {
-                        C[i, j] += A[i, k] * B[k, j];
-                    }
-                }
-            }
-
-            return C;
+            return Math.Tan(p[0]);
         }
 
-        private static double[,] GetArray(Expression expression)
+        private static object Tanh(List<Expression> p)
         {
-            var oExp1 = expression as XObjectExpression;
-            if (oExp1 == null) return new[,] { { (Double)expression } };
-
-            var range = (oExp1.Value as CellRangeReference).Range;
-            var rowCount = range.RowCount();
-            var columnCount = range.ColumnCount();
-            var arr = new double[rowCount, columnCount];
-
-            for (int row = 0; row < rowCount; row++)
-            {
-                for (int column = 0; column < columnCount; column++)
-                {
-                    arr[row, column] = range.Cell(row + 1, column + 1).GetDouble();
-                }
-            }
-
-            return arr;
+            return Math.Tanh(p[0]);
         }
 
-        private static object MDeterm(List<Expression> p)
+        private static object Trunc(List<Expression> p)
         {
-            var arr = GetArray(p[0]);
-            var m = new XLMatrix(arr);
+            var number = (double)p[0];
 
-            return m.Determinant();
-        }
+            var num_digits = 0d;
+            if (p.Count > 1)
+                num_digits = (double)p[1];
 
-        private static object MInverse(List<Expression> p)
-        {
-            var arr = GetArray(p[0]);
-            var m = new XLMatrix(arr);
+            var scaling = Math.Pow(10, num_digits);
 
-            return m.Invert().mat;
+            var truncated = (int)(number * scaling);
+            return (double)truncated / scaling;
         }
     }
 }

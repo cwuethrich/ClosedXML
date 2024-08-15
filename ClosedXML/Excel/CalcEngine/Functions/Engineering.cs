@@ -1,8 +1,10 @@
+#nullable disable
+
 namespace ClosedXML.Excel.CalcEngine
 {
     internal static class Engineering
     {
-        public static void Register(CalcEngine ce)
+        public static void Register(FunctionRegistry ce)
         {
             // BESSELI Returns the modified Bessel function In(x)
             // BESSELJ Returns the Bessel function Jn(x)

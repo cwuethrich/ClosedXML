@@ -1,3 +1,5 @@
+#nullable disable
+
 using System;
 using System.Collections.Generic;
 
@@ -115,8 +117,6 @@ namespace ClosedXML.Excel
         /// Adds a vertical page break after these columns.
         /// </summary>
         IXLColumns AddVerticalPageBreaks();
-
-        IXLColumns SetDataType(XLDataType dataType);
 
         /// <summary>
         /// Clears the contents of these columns.

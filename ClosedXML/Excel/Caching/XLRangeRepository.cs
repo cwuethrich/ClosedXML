@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace ClosedXML.Excel.Caching
@@ -9,7 +9,7 @@ namespace ClosedXML.Excel.Caching
         {
         }
 
-        public XLRangeRepository(XLWorkbook workbook, Func<XLRangeKey, XLRangeBase> createNew, IEqualityComparer<XLRangeKey> сomparer) : base(workbook, createNew, сomparer)
+        public XLRangeRepository(XLWorkbook workbook, Func<XLRangeKey, XLRangeBase> createNew, IEqualityComparer<XLRangeKey> comparer) : base(workbook, createNew, comparer)
         {
         }
     }

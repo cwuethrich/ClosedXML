@@ -1,4 +1,6 @@
-﻿using System;
+#nullable disable
+
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -16,10 +18,6 @@ namespace ClosedXML.Excel.Drawings
         IXLPicture Add(Stream stream, XLPictureFormat format);
 
         IXLPicture Add(Stream stream, XLPictureFormat format, String name);
-
-        IXLPicture Add(Bitmap bitmap);
-
-        IXLPicture Add(Bitmap bitmap, String name);
 
         IXLPicture Add(String imageFile);
 

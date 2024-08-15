@@ -1,4 +1,6 @@
-﻿using ClosedXML.Utils;
+#nullable disable
+
+using ClosedXML.Utils;
 using DocumentFormat.OpenXml.Spreadsheet;
 
 namespace ClosedXML.Excel

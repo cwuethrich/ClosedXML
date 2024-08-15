@@ -1,3 +1,5 @@
+#nullable disable
+
 using System;
 
 namespace ClosedXML.Excel
@@ -7,10 +9,9 @@ namespace ClosedXML.Excel
         IXLRichString AddText(String text);
         IXLRichString AddNewLine();
     }
-    public interface IXLRichString: IXLFontBase, IEquatable<IXLRichString>, IXLWithRichString
+    public interface IXLRichString : IXLFontBase, IEquatable<IXLRichString>, IXLWithRichString
     {
         String Text { get; set; }
-
 
         IXLRichString SetBold(); IXLRichString SetBold(Boolean value);
         IXLRichString SetItalic(); IXLRichString SetItalic(Boolean value);
@@ -23,5 +24,8 @@ namespace ClosedXML.Excel
         IXLRichString SetFontName(String value);
         IXLRichString SetFontFamilyNumbering(XLFontFamilyNumberingValues value);
         IXLRichString SetFontCharSet(XLFontCharSet value);
+
+        /// <inheritdoc cref="IXLFontBase.FontScheme"/>
+        IXLRichString SetFontScheme(XLFontScheme value);
     }
 }

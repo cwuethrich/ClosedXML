@@ -1,3 +1,5 @@
+#nullable disable
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -62,14 +64,6 @@ namespace ClosedXML.Excel
             return cells;
         }
 
-        [Obsolete("Use the overload with XLCellsUsedOptions")]
-        public IXLCells CellsUsed(Boolean includeFormats)
-        {
-            return CellsUsed(includeFormats
-                ? XLCellsUsedOptions.All
-                : XLCellsUsedOptions.AllContents
-            );
-        }
 
         public IXLCells CellsUsed(XLCellsUsedOptions options)
         {
@@ -79,34 +73,10 @@ namespace ClosedXML.Excel
             return cells;
         }
 
-        public IXLRangeColumns SetDataType(XLDataType dataType)
-        {
-            _ranges.ForEach(c => c.DataType = dataType);
-            return this;
-        }
-
         #endregion IXLRangeColumns Members
 
         #region IXLStylized Members
         
-        public override IEnumerable<IXLStyle> Styles
-        {
-            get
-            {
-                yield return Style;
-                foreach (XLRangeColumn rng in _ranges)
-                {
-                    yield return rng.Style;
-                    foreach (XLCell r in rng.Worksheet.Internals.CellsCollection.GetCells(
-                        rng.RangeAddress.FirstAddress.RowNumber,
-                        rng.RangeAddress.FirstAddress.ColumnNumber,
-                        rng.RangeAddress.LastAddress.RowNumber,
-                        rng.RangeAddress.LastAddress.ColumnNumber))
-                        yield return r.Style;
-                }
-            }
-        }
-
         protected override IEnumerable<XLStylizedBase> Children
         {
             get

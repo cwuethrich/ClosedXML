@@ -1,4 +1,6 @@
-﻿using DocumentFormat.OpenXml.Spreadsheet;
+#nullable disable
+
+using DocumentFormat.OpenXml.Spreadsheet;
 using System.Linq;
 
 namespace ClosedXML.Excel.ContentManagers

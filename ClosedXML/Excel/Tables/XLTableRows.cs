@@ -9,29 +9,11 @@ namespace ClosedXML.Excel
     {
         private readonly List<XLTableRow> _ranges = new List<XLTableRow>();
 
-        public XLTableRows(IXLStyle defaultStyle) : base((defaultStyle as XLStyle).Value)
+        public XLTableRows(IXLStyle defaultStyle) : base(((XLStyle)defaultStyle).Value)
         {
         }
 
         #region IXLStylized Members
-
-        public override IEnumerable<IXLStyle> Styles
-        {
-            get
-            {
-                yield return Style;
-                foreach (XLTableRow rng in _ranges)
-                {
-                    yield return rng.Style;
-                    foreach (XLCell r in rng.Worksheet.Internals.CellsCollection.GetCells(
-                        rng.RangeAddress.FirstAddress.RowNumber,
-                        rng.RangeAddress.FirstAddress.ColumnNumber,
-                        rng.RangeAddress.LastAddress.RowNumber,
-                        rng.RangeAddress.LastAddress.ColumnNumber))
-                        yield return r.Style;
-                }
-            }
-        }
 
         protected override IEnumerable<XLStylizedBase> Children
         {

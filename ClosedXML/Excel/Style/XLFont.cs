@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Text;
 
 namespace ClosedXML.Excel
@@ -23,15 +24,15 @@ namespace ClosedXML.Excel
             }
         }
 
-        internal static XLFontKey GenerateKey(IXLFontBase defaultFont)
+        internal static XLFontKey GenerateKey(IXLFontBase? defaultFont)
         {
             if (defaultFont == null)
             {
                 return XLFontValue.Default.Key;
             }
-            else if (defaultFont is XLFont)
+            else if (defaultFont is XLFont font)
             {
-                return (defaultFont as XLFont).Key;
+                return font.Key;
             }
             else
             {
@@ -47,7 +48,8 @@ namespace ClosedXML.Excel
                     FontColor = defaultFont.FontColor.Key,
                     FontName = defaultFont.FontName,
                     FontFamilyNumbering = defaultFont.FontFamilyNumbering,
-                    FontCharSet = defaultFont.FontCharSet
+                    FontCharSet = defaultFont.FontCharSet,
+                    FontScheme = defaultFont.FontScheme
                 };
             }
         }
@@ -71,17 +73,36 @@ namespace ClosedXML.Excel
         /// </summary>
         /// <param name="style">Style to attach the new instance to.</param>
         /// <param name="value">Style value to use.</param>
-        public XLFont(XLStyle style, XLFontValue value)
+        public XLFont(XLStyle? style, XLFontValue value)
         {
             _style = style ?? XLStyle.CreateEmptyStyle();
             _value = value;
         }
 
-        public XLFont(XLStyle style, XLFontKey key) : this(style, XLFontValue.FromKey(ref key))
+        public XLFont(XLStyle? style, XLFontKey key) : this(style, XLFontValue.FromKey(ref key))
         {
         }
 
-        public XLFont(XLStyle style = null, IXLFont d = null) : this(style, GenerateKey(d))
+        /// <summary>
+        /// Create a new font that is attached to a style and the changes to the font object are propagated to the style.
+        /// </summary>
+        /// <param name="style">The container style that will be modified by changes of created <c>XLFont</c>.</param>
+        public XLFont(XLStyle style) : this(style, GenerateKey(style.Font))
+        {
+        }
+
+        /// <summary>
+        /// Create a new font. The changes to the object are not propagated to a style.
+        /// </summary>
+        public XLFont(IXLFontBase font) : this(null, GenerateKey(font))
+        {
+        }
+
+        public XLFont(XLFontKey key) : this(null, XLFontValue.FromKey(ref key))
+        {
+        }
+
+        private XLFont() : this(null, GenerateKey(null))
         {
         }
 
@@ -93,9 +114,8 @@ namespace ClosedXML.Excel
 
             _style.Modify(styleKey =>
             {
-                var font = styleKey.Font;
-                styleKey.Font = modification(font);
-                return styleKey;
+                var font = modification(styleKey.Font);
+                return styleKey with { Font = font };
             });
         }
 
@@ -106,7 +126,7 @@ namespace ClosedXML.Excel
             get { return Key.Bold; }
             set
             {
-                Modify(k => { k.Bold = value; return k; });
+                Modify(k => k with { Bold = value });
             }
         }
 
@@ -115,7 +135,7 @@ namespace ClosedXML.Excel
             get { return Key.Italic; }
             set
             {
-                Modify(k => { k.Italic = value; return k; });
+                Modify(k => k with { Italic = value });
             }
         }
 
@@ -124,7 +144,7 @@ namespace ClosedXML.Excel
             get { return Key.Underline; }
             set
             {
-                Modify(k => { k.Underline = value; return k; });
+                Modify(k => k with { Underline = value });
             }
         }
 
@@ -133,7 +153,7 @@ namespace ClosedXML.Excel
             get { return Key.Strikethrough; }
             set
             {
-                Modify(k => { k.Strikethrough = value; return k; });
+                Modify(k => k with { Strikethrough = value });
             }
         }
 
@@ -142,7 +162,7 @@ namespace ClosedXML.Excel
             get { return Key.VerticalAlignment; }
             set
             {
-                Modify(k => { k.VerticalAlignment = value; return k; });
+                Modify(k => k with { VerticalAlignment = value });
             }
         }
 
@@ -151,7 +171,7 @@ namespace ClosedXML.Excel
             get { return Key.Shadow; }
             set
             {
-                Modify(k => { k.Shadow = value; return k; });
+                Modify(k => k with { Shadow = value });
             }
         }
 
@@ -160,7 +180,7 @@ namespace ClosedXML.Excel
             get { return Key.FontSize; }
             set
             {
-                Modify(k => { k.FontSize = value; return k; });
+                Modify(k => k with { FontSize = value });
             }
         }
 
@@ -175,7 +195,7 @@ namespace ClosedXML.Excel
             {
                 if (value == null)
                     throw new ArgumentNullException(nameof(value), "Color cannot be null");
-                Modify(k => { k.FontColor = value.Key; return k; });
+                Modify(k => k with { FontColor = value.Key });
             }
         }
 
@@ -184,7 +204,7 @@ namespace ClosedXML.Excel
             get { return Key.FontName; }
             set
             {
-                Modify(k => { k.FontName = value; return k; });
+                Modify(k => k with { FontName = value });
             }
         }
 
@@ -193,7 +213,7 @@ namespace ClosedXML.Excel
             get { return Key.FontFamilyNumbering; }
             set
             {
-                Modify(k => { k.FontFamilyNumbering = value; return k; });
+                Modify(k => k with { FontFamilyNumbering = value });
             }
         }
 
@@ -202,7 +222,16 @@ namespace ClosedXML.Excel
             get { return Key.FontCharSet; }
             set
             {
-                Modify(k => { k.FontCharSet = value; return k; });
+                Modify(k => k with { FontCharSet = value });
+            }
+        }
+
+        public XLFontScheme FontScheme
+        {
+            get { return Key.FontScheme; }
+            set
+            {
+                Modify(k => k with { FontScheme = value });
             }
         }
 
@@ -302,6 +331,12 @@ namespace ClosedXML.Excel
             return _style;
         }
 
+        public IXLStyle SetFontScheme(XLFontScheme value)
+        {
+            FontScheme = value;
+            return _style;
+        }
+
         #endregion IXLFont Members
 
         #region Overridden
@@ -321,13 +356,17 @@ namespace ClosedXML.Excel
             sb.Append("-");
             sb.Append(Shadow.ToString());
             sb.Append("-");
-            sb.Append(FontSize.ToString());
+            sb.Append(FontSize.ToString(CultureInfo.InvariantCulture));
             sb.Append("-");
             sb.Append(FontColor);
             sb.Append("-");
             sb.Append(FontName);
             sb.Append("-");
             sb.Append(FontFamilyNumbering.ToString());
+            sb.Append("-");
+            sb.Append(FontCharSet.ToString());
+            sb.Append("-");
+            sb.Append(FontScheme.ToString());
             return sb.ToString();
         }
 
@@ -336,7 +375,7 @@ namespace ClosedXML.Excel
             return Equals(obj as XLFont);
         }
 
-        public Boolean Equals(IXLFont other)
+        public Boolean Equals(IXLFont? other)
         {
             var otherF = other as XLFont;
             if (otherF == null)

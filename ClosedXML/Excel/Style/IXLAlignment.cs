@@ -1,15 +1,17 @@
+#nullable disable
+
 using System;
 
 namespace ClosedXML.Excel
 {
-    public enum XLAlignmentReadingOrderValues
+    public enum XLAlignmentReadingOrderValues : byte
     {
         ContextDependent,
         LeftToRight,
         RightToLeft
     }
 
-    public enum XLAlignmentHorizontalValues
+    public enum XLAlignmentHorizontalValues : byte
     {
         Center,
         CenterContinuous,
@@ -21,7 +23,7 @@ namespace ClosedXML.Excel
         Right
     }
 
-    public enum XLAlignmentVerticalValues
+    public enum XLAlignmentVerticalValues : byte
     {
         Bottom,
         Center,
@@ -68,7 +70,9 @@ namespace ClosedXML.Excel
         Boolean ShrinkToFit { get; set; }
 
         /// <summary>
-        /// Gets or sets the cell's text rotation.
+        /// Gets or sets the cell's text rotation in degrees. Allowed values are -90
+        /// (text is rotated clockwise) to 90 (text is rotated counterclockwise) and
+        /// 255 for vertical layout of a text.
         /// </summary>
         Int32 TextRotation { get; set; }
 
@@ -78,7 +82,7 @@ namespace ClosedXML.Excel
         Boolean WrapText { get; set; }
 
         /// <summary>
-        /// Gets or sets wheter the cell's text should be displayed from to to bottom
+        /// Gets or sets whether the cell's text should be displayed from to to bottom
         /// <para>(as opposed to the normal left to right).</para>
         /// </summary>
         Boolean TopToBottom { get; set; }

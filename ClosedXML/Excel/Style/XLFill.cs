@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 
 namespace ClosedXML.Excel
 {
@@ -7,16 +6,16 @@ namespace ClosedXML.Excel
     {
         #region static members
 
-        internal static XLFillKey GenerateKey(IXLFill defaultFill)
+        internal static XLFillKey GenerateKey(IXLFill? defaultFill)
         {
             XLFillKey key;
             if (defaultFill == null)
             {
                 key = XLFillValue.Default.Key;
             }
-            else if (defaultFill is XLFill)
+            else if (defaultFill is XLFill fill)
             {
-                key = (defaultFill as XLFill).Key;
+                key = fill.Key;
             }
             else
             {
@@ -53,17 +52,17 @@ namespace ClosedXML.Excel
         /// </summary>
         /// <param name="style">Style to attach the new instance to.</param>
         /// <param name="value">Style value to use.</param>
-        public XLFill(XLStyle style, XLFillValue value)
+        public XLFill(XLStyle? style, XLFillValue value)
         {
             _style = style ?? XLStyle.CreateEmptyStyle();
             _value = value;
         }
 
-        public XLFill(XLStyle style, XLFillKey key) : this(style, XLFillValue.FromKey(ref key))
+        public XLFill(XLStyle? style, XLFillKey key) : this(style, XLFillValue.FromKey(ref key))
         {
         }
 
-        public XLFill(XLStyle style = null, IXLFill d = null) : this(style, GenerateKey(d))
+        public XLFill(XLStyle? style = null, IXLFill? d = null) : this(style, GenerateKey(d))
         {
         }
 
@@ -75,9 +74,8 @@ namespace ClosedXML.Excel
 
             _style.Modify(styleKey =>
             {
-                var fill = styleKey.Fill;
-                styleKey.Fill = modification(fill);
-                return styleKey;
+                var fill = modification(styleKey.Fill);
+                return styleKey with { Fill = fill };
             });
         }
 
@@ -100,15 +98,14 @@ namespace ClosedXML.Excel
                     && XLColor.IsNullOrTransparent(BackgroundColor))
                 {
                     var patternType = value.HasValue ? XLFillPatternValues.Solid : XLFillPatternValues.None;
-                    Modify(k =>
+                    Modify(k => k with
                     {
-                        k.BackgroundColor = value.Key;
-                        k.PatternType = patternType;
-                        return k;
+                        BackgroundColor = value.Key,
+                        PatternType = patternType,
                     });
                 }
                 else
-                    Modify(k => { k.BackgroundColor = value.Key; return k; });
+                    Modify(k => k with { BackgroundColor = value.Key });
             }
         }
 
@@ -124,7 +121,7 @@ namespace ClosedXML.Excel
                 if (value == null)
                     throw new ArgumentNullException(nameof(value), "Color cannot be null");
 
-                Modify(k => { k.PatternColor = value.Key; return k; });
+                Modify(k => k with { PatternColor = value.Key });
             }
         }
 
@@ -138,15 +135,14 @@ namespace ClosedXML.Excel
                 {
                     // If fill was empty and the pattern changes to non-empty we have to specify a background color too.
                     // Otherwise the fill will be considered empty and pattern won't update (the cached empty fill will be used).
-                    Modify(k =>
+                    Modify(k => k with
                     {
-                        k.BackgroundColor = XLColor.FromTheme(XLThemeColor.Text1).Key;
-                        k.PatternType = value;
-                        return k;
+                        BackgroundColor = XLColor.FromTheme(XLThemeColor.Text1).Key,
+                        PatternType = value,
                     });
                 }
                 else
-                    Modify(k => { k.PatternType = value; return k; });
+                    Modify(k => k with { PatternType = value });
             }
         }
 
@@ -177,7 +173,7 @@ namespace ClosedXML.Excel
             return Equals(obj as XLFill);
         }
 
-        public bool Equals(IXLFill other)
+        public bool Equals(IXLFill? other)
         {
             var otherF = other as XLFill;
             if (otherF == null)

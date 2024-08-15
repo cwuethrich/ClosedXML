@@ -7,7 +7,7 @@ namespace ClosedXML.Excel
 {
     internal static class XDocumentExtensions
     {
-        public static XDocument Load(Stream stream)
+        public static XDocument? Load(Stream stream)
         {
             using (XmlReader reader = XmlReader.Create(stream))
             {
